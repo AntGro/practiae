@@ -14,19 +14,22 @@
 <link rel="stylesheet" href="style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="icon" href="data:,">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
 </head>
 <body>
 <header class="topbar">
-  <div>
-    <h1>Practiae</h1>
-    <p class="subtitle">Spaced practice routines — front-only, your data in your Drive</p>
+  <div class="topbar-brand">
+    <img src="logo.svg" width="36" height="36" alt="Practiae logo">
+    <div>
+      <h1>Practiae</h1>
+      <p class="subtitle">Spaced practice routines — front-only, your data in your Drive</p>
+    </div>
   </div>
   <div class="top-actions">
     <span id="mode-badge" class="badge">Local</span>
     <span id="save-status" class="badge" data-state="saved">Saved</span>
     <button class="btn" id="mode-local" data-mode="local" data-action="mode-local">Local</button>
-    <button class="btn drive-only" id="mode-drive" data-mode="drive" data-action="mode-drive">Google Drive</button>
+    <button class="btn drive-only" id="mode-drive" data-mode="drive" data-action="mode-drive"><img src="icons/brand/googledrive.svg" class="brand-icon" width="16" height="16" alt=""> Google Drive</button>
     <a class="btn" href="index.html" title="Back to the welcome page">Practiae</a>
     <button class="btn" data-action="open-settings">Settings</button>
   </div>

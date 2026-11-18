@@ -3,7 +3,7 @@
 import { chromium } from 'playwright';
 const browser = await chromium.launch();
 // Welcome page, no interaction needed.
-for (const [name, width] of [['welcome-desktop', 1400], ['welcome-mobile', 390]]) {
+for (const [name, width] of [['welcome-desktop', 1400], ['welcome-wide', 1920], ['welcome-mobile', 390]]) {
   const page = await browser.newPage({ viewport: { width, height: 1000 } });
   await page.goto('http://localhost:8000/', { waitUntil: 'networkidle' });
   await page.waitForSelector('.welcome-stat-card');

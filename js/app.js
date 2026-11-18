@@ -11,6 +11,7 @@ import { blankPiece, blankProgram, normaliseDoc, seedFromDefault, currentProgram
 import { generateRoutine, pieceLabel, tagColor, parseDayPattern } from './generate.js';
 import { createLocalAdapter, DEMO_KEY } from './adapters/local.js';
 import { createDriveAdapter, getDriveToken, clearDriveToken } from './adapters/drive.js';
+import { tagChartHTML, tagChartLegendHTML } from './chart.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -34,6 +35,8 @@ let filterTags = [];
 let hideZero = false;
 let searchQuery = '';
 let routineDay = 0; // mobile day-by-day routine view: which day is shown
+let chartMode = 'count'; // tag chart: 'count' (pieces) or 'duration' (minutes)
+let pinnedPiece = null; // routine cell highlight pinned by click (touch)
 let groupDraft = { kind: null, selected: new Set() };
 
 function setStatus(state, detail = '') {
@@ -158,27 +161,76 @@ function renderRoutine() {
     <p class="muted">${items.length} piece${items.length === 1 ? '' : 's'} · ${esc(r.columns[day])}</p>
     <ol class="day-list">${items.map((cell) => `<li>${esc(cell)}</li>`).join('')}</ol>`;
   const maxRows = r.data.length;
+  // data-piece on each non-empty cell powers the hover/click highlighting
+  // below (same attribute the Flask app used).
   box.innerHTML = `<table class="routine-table"><thead><tr><th></th>${r.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
-    <tbody>${r.data.map((row, i) => `<tr><th>${esc(r.indices[i] || '')}</th>${row.map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>
-    <p class="muted">${maxRows} rows · pinned ${p.is_routine_pinned ? 'yes' : 'no'}</p>`;
+    <tbody>${r.data.map((row, i) => `<tr><th>${esc(r.indices[i] || '')}</th>${row.map((cell) => cell ? `<td data-piece="${esc(cell)}" data-action="routine-cell">${esc(cell)}</td>` : '<td></td>').join('')}</tr>`).join('')}</tbody></table>
+    <p class="muted">${maxRows} rows · pinned ${p.is_routine_pinned ? 'yes' : 'no'} · hover a piece to see it across all days (click to pin)</p>`;
   const td = r.tag_distribution;
   if (td?.tags?.length) {
-    $('#tag-chart').innerHTML = `<h3>Tag distribution (pieces per day)</h3>
-      <div class="chart">${td.by_count[td.tags[0]].map((_, d) => {
-        // Bar widths are shares of tag occurrences (a piece with two tags
-        // counts twice); the total shown is pieces that day, not the sum
-        // of occurrences — otherwise a 68-piece day reads "136".
-        const segTotal = td.tags.reduce((s, t) => s + td.by_count[t][d], 0) || 1;
-        const piecesToday = r.data.filter((row) => row[d]).length;
-        const segs = td.tags.map((t) => {
-          const n = td.by_count[t][d];
-          return n ? `<div class="chart-seg" style="width:${(n / segTotal * 100).toFixed(1)}%;background:${esc(td.tag_colors[t])}" title="${esc(t)}: ${n}"></div>` : '';
-        }).join('');
-        return `<div class="chart-row"><span class="chart-day">${esc(r.columns[d] || `Day ${d + 1}`)}</span><div class="chart-bar">${segs}</div><span class="chart-total" title="${segTotal} tag occurrences">${piecesToday}</span></div>`;
-      }).join('')}</div>
-      <div class="legend">${td.tags.map((t) => `<span class="legend-item"><i style="background:${esc(td.tag_colors[t])}"></i>${esc(t)}</span>`).join('')}</div>`;
+    // Durations by label, for the Duration view of the chart.
+    const durByLabel = new Map(p.pieces.map((pc) => [pieceLabel(pc), pc.duration_min || 0]));
+    const dayTotals = r.columns.map((_, d) => {
+      const labels = r.data.map((row) => row[d]).filter(Boolean);
+      return { pieces: labels.length, minutes: labels.reduce((s, l) => s + (durByLabel.get(l) || 0), 0) };
+    });
+    $('#tag-chart').innerHTML = `<h3>Tag distribution</h3>
+      <label class="chart-mode"><span>Pieces</span><input type="checkbox" id="tag-dist-mode" ${chartMode === 'duration' ? 'checked' : ''} aria-label="Show durations instead of piece counts"><span>Duration</span></label>
+      ${tagChartHTML({ tagDistribution: td, columns: r.columns, mode: chartMode, dayTotals })}
+      ${tagChartLegendHTML(td)}`;
   } else { $('#tag-chart').innerHTML = ''; }
 }
+
+// ---------- routine cell highlighting (port of the Flask app) ----------
+// Hovering a routine cell highlights every cell with the same piece
+// (blue), cells of pieces it must never share a day with (warm/red) and
+// cells of pieces it must share days with (green) — from the program's
+// exclusion/inclusion groups. Clicking pins the highlight (touch has no
+// hover); Esc or clicking the same cell again clears the pin.
+function groupLabelMaps(p) {
+  const byId = new Map(p.pieces.map((pc) => [pc.id, pieceLabel(pc)]));
+  const build = (groups) => {
+    const m = new Map();
+    for (const g of groups || []) {
+      const labels = g.map((id) => byId.get(id)).filter(Boolean);
+      for (const l of labels) m.set(l, new Set(labels.filter((x) => x !== l)));
+    }
+    return m;
+  };
+  return { exclusion: build(p.exclusion_groups), inclusion: build(p.inclusion_groups) };
+}
+let hovered = { piece: [], exclusion: [], inclusion: [] };
+function applyHighlight(piece) {
+  [...hovered.piece, ...hovered.exclusion, ...hovered.inclusion].forEach((el) =>
+    el.classList.remove('piece-highlight', 'exclusion-highlight', 'inclusion-highlight'));
+  hovered = { piece: [], exclusion: [], inclusion: [] };
+  if (!piece) return;
+  const table = document.querySelector('.routine-table');
+  if (!table) return;
+  const cells = (label) => [...table.querySelectorAll(`td[data-piece="${CSS.escape(label)}"]`)];
+  hovered.piece = cells(piece);
+  hovered.piece.forEach((el) => el.classList.add('piece-highlight'));
+  const maps = groupLabelMaps(prog());
+  for (const [kind, map] of [['exclusion', maps.exclusion], ['inclusion', maps.inclusion]]) {
+    const others = map.get(piece);
+    if (!others) continue;
+    hovered[kind] = [...others].flatMap(cells);
+    hovered[kind].forEach((el) => el.classList.add(kind === 'exclusion' ? 'exclusion-highlight' : 'inclusion-highlight'));
+  }
+}
+document.addEventListener('mouseover', (e) => {
+  const td = e.target.closest('.routine-table td[data-piece]');
+  if (td) applyHighlight(td.dataset.piece);
+});
+document.addEventListener('mouseout', (e) => {
+  const td = e.target.closest('.routine-table td[data-piece]');
+  if (!td) return;
+  if (e.relatedTarget?.closest?.('.routine-table td[data-piece]')) return;
+  applyHighlight(pinnedPiece);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && pinnedPiece) { pinnedPiece = null; applyHighlight(null); }
+});
 
 function renderGroups() {
   const p = prog();
@@ -336,6 +388,8 @@ document.addEventListener('click', async (e) => {
     case 'routine-day': { const d = +el.dataset.day;
       const r = prog()?.pinned_routine; if (!r || Number.isNaN(d)) break;
       routineDay = Math.max(0, Math.min(d, r.columns.length - 1)); renderRoutine(); break; }
+    case 'routine-cell': { const piece = el.dataset.piece;
+      pinnedPiece = pinnedPiece === piece ? null : piece; applyHighlight(pinnedPiece); break; }
     case 'edit-days': openDaysDialog(id); break;
     case 'edit-notes': openNotesDialog(id); break;
     case 'generate': await doGenerate(el); break;
@@ -389,6 +443,7 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   if (e.target.id === 'hide-zero') { hideZero = e.target.checked; renderPieces(); }
+  if (e.target.id === 'tag-dist-mode') { chartMode = e.target.checked ? 'duration' : 'count'; renderRoutine(); }
   if (e.target.id === 'num-days') {
     const p = prog(); const n = clamp(parseInt(e.target.value, 10) || 8, 1, 31);
     mutate(() => {

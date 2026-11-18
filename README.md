@@ -105,10 +105,27 @@ this machine, so live browser tests run in headless Chromium here
 - `app.html`, `demo.html`, `style.css` — the app + theme (dark/light via
   CSS variables); demo is the same app with Drive hidden, no sign-in
 - `serve.mjs` — zero-dependency Node static server for local dev (no Flask, no Python)
+- `logo.svg` — the original Practiae logo (purple grid + checkmarks),
+  reused from the Flask app's favicon; also the favicon for all pages
+- `icons/brand/googledrive.svg` — Google Drive brand logo (thesvg, via DeLaClaw)
 - `js/icons.js` — Lucide icons (embedded path data, same source as DeLaClaw)
-- `js/logo.js` — generated SVG logo (original mark, DeLaClaw Storm approach)
-- `js/welcome.js` — welcome page: logo, live stats + chart from the seed
-- `ATTRIBUTIONS.md` — third-party sources (DM Sans, Lucide, Google Identity)
+- `js/chart.js` — tag distribution chart (vertical stacked bars, Pieces /
+  Duration toggle, ported from the Flask app)
+- `js/welcome.js` — welcome page: live stats + chart from the seed
+- `ATTRIBUTIONS.md` — third-party sources (DM Sans, Lucide, Google Identity, thesvg)
+
+## Ported from the Flask app
+
+- **Routine highlighting**: hovering a routine cell highlights the same
+  piece across all days (blue); pieces it must never share a day with
+  (warm) and pieces it must share days with (green), from the program's
+  exclusion / inclusion groups. Click pins the highlight (touch has no
+  hover); Esc clears it.
+- **Tag chart**: vertical stacked bars per day with a Pieces / Duration
+  toggle and hover tooltips. Totals show pieces (or minutes), never the
+  sum of tag occurrences.
+- **Navigation**: the program list in the sidebar is the port of the
+  Flask program tabs (switch, rename, duplicate, delete, add).
 
 ## Mobile (≤800px) — a different layout, same data
 Desktop keeps the dense tables. On a phone the app swaps in:

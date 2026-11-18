@@ -21,7 +21,9 @@ try {
   const ROOT = BASE.replace(/demo\.html$/, '');
   const welcome = await browser.newPage();
   await welcome.goto(ROOT, { waitUntil: 'networkidle' });
-  check('welcome: logo SVG rendered', (await welcome.locator('.practiae-logo').count()) === 1);
+  check('welcome: original logo reused', (await welcome.locator('img.welcome-logo-img[src="logo.svg"]').count()) === 1);
+  check('welcome: Drive choice uses the Google Drive brand logo',
+    (await welcome.locator('.choice-card[href="app.html?drive=1"] img[src="icons/brand/googledrive.svg"]').count()) === 1);
   check('welcome: demo choice links to demo.html',
     (await welcome.locator('.choice-card[href="demo.html"]').count()) === 1);
   check('welcome: Drive choice links to app.html?drive=1',
@@ -29,7 +31,7 @@ try {
   await welcome.waitForSelector('.welcome-stat-card', { timeout: 10000 });
   check('welcome: 4 live stat cards', (await welcome.locator('.welcome-stat-card').count()) === 4);
   check('welcome: tag chart rendered from the seed program',
-    (await welcome.locator('#welcome-chart .chart-row').count()) === 8);
+    (await welcome.locator('#welcome-chart .tag-dist-col').count()) === 8);
   check('welcome: no emoji in the page', !/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(await welcome.content()));
   await welcome.click('.choice-card[href="demo.html"]');
   await welcome.waitForSelector('#pieces-body tr', { timeout: 10000 });
@@ -80,7 +82,34 @@ try {
   await page.waitForSelector('.routine-table', { timeout: 10000 });
   const cols = await page.locator('.routine-table thead th').count();
   check('routine table has 8 day columns + row header', cols === 9, `got ${cols}`);
-  check('tag chart rendered', (await page.locator('#tag-chart .chart-row').count()) === 8);
+  check('tag chart rendered (vertical bars, one column per day)', (await page.locator('#tag-chart .tag-dist-col').count()) === 8);
+  check('tag chart totals are pieces per day',
+    /^\d+$/.test((await page.locator('#tag-chart .tag-dist-col-total').first().textContent())?.trim() || ''));
+  // Pieces/Duration toggle (Flask feature).
+  await page.check('#tag-dist-mode');
+  await page.waitForTimeout(200);
+  check('tag chart Duration view shows minutes',
+    /min$/.test((await page.locator('#tag-chart .tag-dist-col-total').first().textContent())?.trim() || ''));
+  await page.uncheck('#tag-dist-mode');
+  // Routine cell highlighting (Flask feature): hover highlights the
+  // same piece across all days; click pins it; Esc clears it.
+  const firstCell = page.locator('.routine-table td[data-piece]').first();
+  const piece = await firstCell.getAttribute('data-piece');
+  await firstCell.hover();
+  const hl = await page.evaluate((p) => {
+    const els = [...document.querySelectorAll('.routine-table td.piece-highlight')];
+    return { n: els.length, same: els.every((el) => el.dataset.piece === p) };
+  }, piece);
+  check('hovering a routine cell highlights the same piece everywhere',
+    hl.n > 0 && hl.same, `${hl.n} cells`);
+  await firstCell.click();
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(200);
+  check('click pins the highlight after the mouse leaves',
+    (await page.locator('.routine-table td.piece-highlight').count()) === hl.n);
+  await page.keyboard.press('Escape');
+  check('Esc clears the pinned highlight',
+    (await page.locator('.routine-table td.piece-highlight').count()) === 0);
   const saved = await page.textContent('#save-status');
   check('save status shows saved/demo', /Demo|Saved/i.test(saved || ''));
 
