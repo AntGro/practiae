@@ -17,10 +17,39 @@ const check = (name, ok, extra = '') => {
 
 const browser = await chromium.launch();
 try {
+  // ---- Welcome page (site root) ----
+  const ROOT = BASE.replace(/demo\.html$/, '');
+  const welcome = await browser.newPage();
+  await welcome.goto(ROOT, { waitUntil: 'networkidle' });
+  check('welcome: logo SVG rendered', (await welcome.locator('.practiae-logo').count()) === 1);
+  check('welcome: demo choice links to demo.html',
+    (await welcome.locator('.choice-card[href="demo.html"]').count()) === 1);
+  check('welcome: Drive choice links to app.html?drive=1',
+    (await welcome.locator('.choice-card[href="app.html?drive=1"]').count()) === 1);
+  await welcome.waitForSelector('.welcome-stat-card', { timeout: 10000 });
+  check('welcome: 4 live stat cards', (await welcome.locator('.welcome-stat-card').count()) === 4);
+  check('welcome: tag chart rendered from the seed program',
+    (await welcome.locator('#welcome-chart .chart-row').count()) === 8);
+  check('welcome: no emoji in the page', !/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(await welcome.content()));
+  await welcome.click('.choice-card[href="demo.html"]');
+  await welcome.waitForSelector('#pieces-body tr', { timeout: 10000 });
+  check('welcome: demo choice opens the demo app',
+    (await welcome.locator('#pieces-body tr').count()) === 68);
+
   const page = await browser.newPage();
   const consoleErrors = [];
   const pageErrors = [];
-  page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  // The VM's headless Chromium cannot reach the internet at all
+  // (ERR_TUNNEL_CONNECTION_FAILED, even for example.com), so the
+  // Google Fonts stylesheet fails to load here and falls back to the
+  // system font stack. That is not an app error — ignore font-CDN
+  // load failures, count everything else.
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    const url = m.location()?.url || '';
+    if (/fonts\.(googleapis|gstatic)\.com/.test(url)) return;
+    consoleErrors.push(m.text());
+  });
   page.on('pageerror', (e) => pageErrors.push(String(e)));
 
   await page.goto(BASE, { waitUntil: 'networkidle' });

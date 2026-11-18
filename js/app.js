@@ -22,7 +22,10 @@ export const DEMO = window.PRACTIAE_DEMO === true
   || new URLSearchParams(location.search).get('demo') === '1';
 
 let doc = null;
-let mode = DEMO ? 'local' : (localStorage.getItem('practiae:mode') || 'local');
+// The welcome page links here with ?drive=1 ("Connect Google Drive"):
+// start straight in Drive mode (sign-in) instead of local.
+const wantDrive = new URLSearchParams(location.search).get('drive') === '1';
+let mode = DEMO ? 'local' : (wantDrive ? 'drive' : (localStorage.getItem('practiae:mode') || 'local'));
 let adapter = DEMO ? createLocalAdapter(DEMO_KEY) : createLocalAdapter();
 let clientId = resolveClientId();
 let saveState = { state: 'saved', detail: '' };
@@ -162,12 +165,16 @@ function renderRoutine() {
   if (td?.tags?.length) {
     $('#tag-chart').innerHTML = `<h3>Tag distribution (pieces per day)</h3>
       <div class="chart">${td.by_count[td.tags[0]].map((_, d) => {
-        const total = td.tags.reduce((s, t) => s + td.by_count[t][d], 0) || 1;
+        // Bar widths are shares of tag occurrences (a piece with two tags
+        // counts twice); the total shown is pieces that day, not the sum
+        // of occurrences — otherwise a 68-piece day reads "136".
+        const segTotal = td.tags.reduce((s, t) => s + td.by_count[t][d], 0) || 1;
+        const piecesToday = r.data.filter((row) => row[d]).length;
         const segs = td.tags.map((t) => {
           const n = td.by_count[t][d];
-          return n ? `<div class="chart-seg" style="width:${(n / total * 100).toFixed(1)}%;background:${esc(td.tag_colors[t])}" title="${esc(t)}: ${n}"></div>` : '';
+          return n ? `<div class="chart-seg" style="width:${(n / segTotal * 100).toFixed(1)}%;background:${esc(td.tag_colors[t])}" title="${esc(t)}: ${n}"></div>` : '';
         }).join('');
-        return `<div class="chart-row"><span class="chart-day">${esc(r.columns[d] || `Day ${d + 1}`)}</span><div class="chart-bar">${segs}</div><span class="chart-total">${total}</span></div>`;
+        return `<div class="chart-row"><span class="chart-day">${esc(r.columns[d] || `Day ${d + 1}`)}</span><div class="chart-bar">${segs}</div><span class="chart-total" title="${segTotal} tag occurrences">${piecesToday}</span></div>`;
       }).join('')}</div>
       <div class="legend">${td.tags.map((t) => `<span class="legend-item"><i style="background:${esc(td.tag_colors[t])}"></i>${esc(t)}</span>`).join('')}</div>`;
   } else { $('#tag-chart').innerHTML = ''; }

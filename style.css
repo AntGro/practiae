@@ -98,6 +98,54 @@ dialog::backdrop { background: rgba(0,0,0,.4); }
 /* Demo mode: Drive controls are hidden — same UI otherwise. */
 body.demo .drive-only { display: none; }
 
+/* ---- Welcome page ----
+   DeLaClaw principles: DM Sans, Lucide icons only (no emoji), card
+   headers solid in the card colour with white text/icons, 6% tinted
+   card body via color-mix, stat cards with a coloured icon + big value
+   + muted label (DeLaClaw welcome-stats pattern). */
+.welcome-page { max-width: 920px; margin: 0 auto; padding: 2.5rem 1.5rem 3rem; }
+.welcome-hero { text-align: center; margin-bottom: 2rem; }
+.welcome-logo { color: var(--accent); margin-bottom: .5rem; }
+.welcome-hero h1 { font-size: 2.4rem; }
+.welcome-tagline { font-size: 1.15rem; font-weight: 600; margin: .75rem 0 .5rem; }
+.welcome-hero .muted { max-width: 560px; margin: 0 auto; }
+.welcome-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 2rem; }
+.choice-card { display: block; text-decoration: none; color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  background: var(--surface); }
+.choice-card:hover { box-shadow: 0 4px 16px rgba(0, 0, 0, .12); }
+.choice-header { display: flex; align-items: center; gap: .6rem;
+  background: var(--card-color); color: #fff; padding: .9rem 1.1rem; }
+.choice-header h2 { margin: 0; font-size: 1.15rem; color: #fff; }
+.choice-header .lucide-icon { flex-shrink: 0; }
+.choice-body { padding: 1rem 1.1rem;
+  background: color-mix(in srgb, var(--card-color) 6%, var(--surface)); }
+.choice-body p { margin: 0 0 .75rem; }
+.choice-body code { background: var(--surface2); border-radius: 4px; padding: 0 .3rem; }
+.choice-cta { font-weight: 700; color: var(--accent); display: inline-flex; align-items: center; gap: .3rem; }
+.welcome-note { text-align: center; margin: 1rem 0 0; }
+.welcome-preview { margin-top: 2rem; }
+.welcome-stats-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+.welcome-stat-card { flex: 1; min-width: 140px; padding: 12px 14px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border); }
+.welcome-stat-top { display: flex; gap: .5rem; align-items: center; }
+.welcome-stat-icon { display: inline-flex; }
+.welcome-stat-value { font-size: 1.4rem; font-weight: 700; line-height: 1.2; }
+.welcome-stat-label { font-size: .82rem; color: var(--muted); margin-top: 2px; }
+.welcome-steps { margin-top: 2.5rem; }
+.welcome-steps ol { list-style: none; padding: 0; margin: 0;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.welcome-steps li { background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1rem; display: flex; flex-direction: column; gap: .35rem; }
+.welcome-steps .step-icon { color: var(--accent); display: inline-flex; }
+.welcome-footer { text-align: center; margin-top: 2.5rem; }
+@media (max-width: 800px) {
+  .welcome-page { padding: 1.5rem 1rem 3rem; }
+  .welcome-hero h1 { font-size: 1.9rem; }
+  .welcome-choices { grid-template-columns: 1fr; }
+  .welcome-steps ol { grid-template-columns: 1fr; }
+}
+
 /* ---- Mobile rethink (≤800px): cards, not tables ----
    Desktop keeps the dense 9-column table and 8-column routine grid.
    On a phone those tables are unusable, so mobile swaps in:

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practiae — front-only</title>
+<meta name="description" content="Practiae: build a spaced practice routine. Front-only, data in your Google Drive.">
+<!--
+  CSP: app code is 'self' only. Google Identity Services is the documented
+  exception (accounts.google.com / apis.google.com, as in DeLaClaw) — GSI
+  must stay CDN per Google ToS, no SRI allowed.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' accounts.google.com apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' accounts.google.com www.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; frame-src accounts.google.com;">
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:,">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <h1>Practiae</h1>
+    <p class="subtitle">Spaced practice routines — front-only, your data in your Drive</p>
+  </div>
+  <div class="top-actions">
+    <span id="mode-badge" class="badge">Local</span>
+    <span id="save-status" class="badge" data-state="saved">Saved</span>
+    <button class="btn" id="mode-local" data-mode="local" data-action="mode-local">Local</button>
+    <button class="btn drive-only" id="mode-drive" data-mode="drive" data-action="mode-drive">Google Drive</button>
+    <a class="btn" href="index.html" title="Back to the welcome page">Practiae</a>
+    <button class="btn" data-action="open-settings">Settings</button>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="programs">
+    <h2>Programs</h2>
+    <ul id="program-list"></ul>
+    <button class="btn primary" data-action="add-program">New program</button>
+    <div class="program-actions">
+      <button class="btn small" data-action="rename-program">Rename</button>
+      <button class="btn small" data-action="duplicate-program">Duplicate</button>
+      <button class="btn small danger" data-action="delete-program">Delete</button>
+    </div>
+    <p class="muted small">Mode: <span id="mode-label">local</span>. Drive stores one file,
+    <code>practiae.json</code>, in a Practiae / PractiaeDev folder — never your whole Drive.</p>
+  </aside>
+
+  <section class="program">
+    <div class="program-head">
+      <h2 id="program-title">—</h2>
+      <span id="pieces-per-day" class="badge"></span>
+    </div>
+    <div class="program-settings row">
+      <label>Days in cycle <input id="num-days" type="number" min="1" max="31" value="8"></label>
+      <label class="grow">Day names (comma-separated) <input id="day-names" type="text"></label>
+    </div>
+
+    <div class="row filters">
+      <input type="search" id="search-pieces" placeholder="Search pieces…" aria-label="Search pieces">
+      <label><input type="checkbox" id="hide-zero"> Hide 0%</label>
+      <span id="pieces-count" class="muted small"></span>
+      <span id="filter-tags" class="filter-tags"></span>
+      <button class="btn small" data-action="add-piece">Add piece</button>
+      <button class="btn primary" data-action="generate">Generate routine</button>
+    </div>
+
+    <div class="table-scroll"><table class="pieces-table">
+      <thead><tr><th>#</th><th>Title</th><th>Composer / author</th><th>Frequency</th><th>Tags</th><th>Min</th><th>Days</th><th>Notes</th><th></th></tr></thead>
+      <tbody id="pieces-body"></tbody>
+    </table></div>
+    <div id="pieces-cards" class="pieces-cards"></div>
+    <p class="muted small">Double-click a cell — or tap it on a phone — to edit it (Enter saves, Esc cancels). Drag the frequency slider to set how often a piece appears: 100% = every day, 50% = every other day.</p>
+
+    <div class="row">
+      <button class="btn" data-action="copy-routine">Copy routine</button>
+      <button class="btn" data-action="unpin">Clear routine</button>
+      <button class="btn" data-action="export-json">Export JSON</button>
+      <button class="btn" data-action="import-json">Import JSON</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+    </div>
+
+    <h2>Generated routine</h2>
+    <div id="routine-box" class="table-scroll"></div>
+    <div id="routine-mobile" class="routine-mobile"></div>
+    <div id="tag-chart"></div>
+
+    <h2>Groups</h2>
+    <p class="muted small">Exclusion: pieces that must never share a day. Inclusion: pieces that must always share the same days. Fixed-day pieces are never moved to satisfy a group.</p>
+    <div id="groups-box"></div>
+    <div id="group-draft" hidden></div>
+  </section>
+</main>
+  <div class="mobile-bar"><span id="mobile-pieces-per-day" class="muted small"></span>
+    <button class="btn primary" data-action="generate">Generate routine</button></div>
+
+<dialog id="days-dialog">
+  <h3 id="days-dialog-title">Days</h3>
+  <div id="days-grid" class="days-grid"></div>
+  <p class="muted small">No day ticked = the piece is placed by frequency, not on fixed days.</p>
+  <div class="row"><button class="btn primary" id="days-save">Save</button>
+  <button class="btn" onclick="this.closest('dialog').close()">Cancel</button></div>
+</dialog>
+
+<dialog id="notes-dialog">
+  <h3>Notes</h3>
+  <textarea id="notes-text" rows="6"></textarea>
+  <div class="row"><button class="btn primary" id="notes-save">Save</button>
+  <button class="btn" onclick="this.closest('dialog').close()">Cancel</button></div>
+</dialog>
+
+<dialog id="settings-dialog">
+  <h3>Settings</h3>
+  <label class="drive-only">Google OAuth client id
+    <input id="setting-client-id" type="text" size="60">
+  </label>
+  <p class="muted small">Default is DeLaClaw's client. If Google rejects this origin, create a Web OAuth client for Practiae in Google Cloud Console, add this origin as an authorised JavaScript origin, enable the Drive API, and paste its client id here.</p>
+  <div class="row">
+    <button class="btn primary" data-action="save-settings">Save</button>
+    <button class="btn drive-only" data-action="sign-out-drive">Sign out of Drive</button>
+    <button class="btn" onclick="this.closest('dialog').close()">Close</button>
+  </div>
+</dialog>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

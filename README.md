@@ -1,6 +1,8 @@
 # Practiae — front-only, Google Drive storage
 
-Live: **https://antgro.github.io/practiae/** (demo: [/demo.html](https://antgro.github.io/practiae/demo.html))
+Live: **https://antgro.github.io/practiae/** — a welcome page offering the
+demo or Google Drive sign-in. App: [/app.html](https://antgro.github.io/practiae/app.html)
+(demo: [/demo.html](https://antgro.github.io/practiae/demo.html)).
 
 Single-page app, no build step, no framework, vanilla JS (ES modules).
 Data lives in the user's Google Drive, one file. Same architecture as
@@ -98,8 +100,15 @@ this machine, so live browser tests run in headless Chromium here
 
 ## Files
 
-- `index.html`, `style.css` — page + theme (dark/light via CSS variables)
+- `index.html` — welcome page: SVG logo, demo vs Drive choice, live stats
+  + tag chart generated from the seed program
+- `app.html`, `demo.html`, `style.css` — the app + theme (dark/light via
+  CSS variables); demo is the same app with Drive hidden, no sign-in
 - `serve.mjs` — zero-dependency Node static server for local dev (no Flask, no Python)
+- `js/icons.js` — Lucide icons (embedded path data, same source as DeLaClaw)
+- `js/logo.js` — generated SVG logo (original mark, DeLaClaw Storm approach)
+- `js/welcome.js` — welcome page: logo, live stats + chart from the seed
+- `ATTRIBUTIONS.md` — third-party sources (DM Sans, Lucide, Google Identity)
 
 ## Mobile (≤800px) — a different layout, same data
 Desktop keeps the dense tables. On a phone the app swaps in:
