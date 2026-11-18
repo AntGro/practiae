@@ -1,0 +1,1 @@
+{"description":"Practiae front-only, Google Drive storage — local experiment","name":"practiae-gdrive","private":true,"scripts":{"start":"node serve.mjs","test":"node tests/tests.js"},"type":"module"}

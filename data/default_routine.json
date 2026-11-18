@@ -1,0 +1,788 @@
+{
+  "name": "Toutes les pièces",
+  "pieces": [
+    {
+      "composer": "Sibmol",
+      "title": "L'entraînement",
+      "perc": 100.0,
+      "rank": 0,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Le Casse-tête",
+      "perc": 100.0,
+      "rank": 1,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Un Éclaircissement",
+      "perc": 100.0,
+      "rank": 2,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Petit malin",
+      "perc": 100.0,
+      "rank": 3,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Duo",
+      "perc": 100.0,
+      "rank": 4,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 2"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Le Jeu",
+      "perc": 100.0,
+      "rank": 5,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 2"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol d'ap. Czerny",
+      "title": "Étude",
+      "perc": 100.0,
+      "rank": 6,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Valse Slave",
+      "perc": 100.0,
+      "rank": 7,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Gurlitt",
+      "title": "Valse en la mineur, op. 187",
+      "perc": 100.0,
+      "rank": 8,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Gurlitt",
+      "title": "Valse, op. 101",
+      "perc": 100.0,
+      "rank": 9,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Chopin",
+      "title": "Grande valse brillante, op. 108",
+      "perc": 100.0,
+      "rank": 10,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Gnyesina",
+      "title": "Danse ancienne",
+      "perc": 100.0,
+      "rank": 11,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "L'enfant gâté",
+      "perc": 100.0,
+      "rank": 12,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Mozart",
+      "title": "Menuet",
+      "perc": 100.0,
+      "rank": 13,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Petzold",
+      "title": "Menuet, Anh 114",
+      "perc": 100.0,
+      "rank": 14,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Rubbakh",
+      "title": "Valse",
+      "perc": 100.0,
+      "rank": 15,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Contrevalse",
+      "perc": 100.0,
+      "rank": 16,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Schubert",
+      "title": "Ländler, D. 980b",
+      "perc": 100.0,
+      "rank": 17,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Valse Perdue",
+      "perc": 100.0,
+      "rank": 18,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Bartok",
+      "title": "In Yugoslav style",
+      "perc": 100.0,
+      "rank": 19,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Bartok",
+      "title": "Former friends",
+      "perc": 100.0,
+      "rank": 20,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Bartok",
+      "title": "Song of the rogue",
+      "perc": 100.0,
+      "rank": 21,
+      "tags": [
+        "Chap. III.",  "Chap. III. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Étude",
+      "perc": 100.0,
+      "rank": 22,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol / Lemoine",
+      "title": "Prélude",
+      "perc": 100.0,
+      "rank": 23,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Corelli",
+      "title": "Sarabande",
+      "perc": 100.0,
+      "rank": 24,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Tricotage",
+      "perc": 100.0,
+      "rank": 25,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 2"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Diabelli",
+      "title": "Les premières leçons, n°3, op. 125",
+      "perc": 100.0,
+      "rank": 26,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 2"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "La séparation",
+      "perc": 100.0,
+      "rank": 27,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 2"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "La Harpe",
+      "perc": 100.0,
+      "rank": 28,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Witthauer",
+      "title": "Allegretto",
+      "perc": 100.0,
+      "rank": 29,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Boogie",
+      "perc": 100.0,
+      "rank": 30,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Bach",
+      "title": "Jésus, que ma joie demeure",
+      "perc": 100.0,
+      "rank": 31,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Main dans la main",
+      "perc": 100.0,
+      "rank": 32,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Czerny",
+      "title": "Allegro, op. 599",
+      "perc": 100.0,
+      "rank": 33,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "La complainte",
+      "perc": 100.0,
+      "rank": 34,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "Octavia",
+      "perc": 100.0,
+      "rank": 35,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Czerny",
+      "title": "Opus 453, n°6",
+      "perc": 100.0,
+      "rank": 36,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Sibmol",
+      "title": "La barcarolle",
+      "perc": 100.0,
+      "rank": 37,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Czerny",
+      "title": "Opus 599, n°84",
+      "perc": 100.0,
+      "rank": 38,
+      "tags": [
+        "Chap. IV.",  "Chap. IV. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Hummel",
+      "title": "Écossaise",
+      "perc": 100.0,
+      "rank": 39,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Kozeluch",
+      "title": "Romance",
+      "perc": 100.0,
+      "rank": 40,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Schumann",
+      "title": "Mélodie",
+      "perc": 100.0,
+      "rank": 41,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Clementi",
+      "title": "Sonatine n°1 Do majeur, Op. 36 n°1",
+      "perc": 100.0,
+      "rank": 42,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Beethoven",
+      "title": "Sonatine en Sol Majeur",
+      "perc": 100.0,
+      "rank": 43,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Schumann",
+      "title": "Le petit cavalier",
+      "perc": 100.0,
+      "rank": 44,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Mozart",
+      "title": "Valse favorite",
+      "perc": 100.0,
+      "rank": 45,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 1"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Burgmüller",
+      "title": "Arabesque",
+      "perc": 100.0,
+      "rank": 46,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 2"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Zipoli",
+      "title": "Versetto",
+      "perc": 100.0,
+      "rank": 47,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 2"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Bach",
+      "title": "Prélude BWV 927",
+      "perc": 100.0,
+      "rank": 48,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 2"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Chizat",
+      "title": "Nuits perdues N°2 - Reproches",
+      "perc": 100.0,
+      "rank": 49,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 2"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Bizet",
+      "title": "La marche des rois",
+      "perc": 100.0,
+      "rank": 50,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Clementi",
+      "title": "Sonatine Op. 36 n°2 - Mouvement 2",
+      "perc": 100.0,
+      "rank": 51,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Tchaïkovski",
+      "title": "L'enterrement de la poupée",
+      "perc": 100.0,
+      "rank": 52,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Schubert",
+      "title": "Valse D. 145, Op. 18",
+      "perc": 100.0,
+      "rank": 53,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Tchaïkovski",
+      "title": "Rêverie",
+      "perc": 100.0,
+      "rank": 54,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 3"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Verdi",
+      "title": "Traviata - Ah, Fors'è Lui",
+      "perc": 100.0,
+      "rank": 55,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Schubert",
+      "title": "Rosamunde",
+      "perc": 100.0,
+      "rank": 56,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Schubert",
+      "title": "Sérénade D. 957 - N°4",
+      "perc": 100.0,
+      "rank": 57,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Chopin",
+      "title": "Mazurka Op. 7 No. 5",
+      "perc": 100.0,
+      "rank": 58,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 4"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Howard & Emerson",
+      "title": "Ragtime Song Fest - Hello, Ma Baby",
+      "perc": 100.0,
+      "rank": 59,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Joplin",
+      "title": "Maple Leaf Rag",
+      "perc": 100.0,
+      "rank": 60,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Joplin",
+      "title": "The Entertainer",
+      "perc": 100.0,
+      "rank": 61,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Gershwin",
+      "title": "Rhapsody in Blue",
+      "perc": 100.0,
+      "rank": 62,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 5"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Satie",
+      "title": "Gymnopédie n°1",
+      "perc": 100.0,
+      "rank": 63,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Burgmüller",
+      "title": "Harmonie des anges",
+      "perc": 100.0,
+      "rank": 64,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Tchaïkovski",
+      "title": "Valse, op. 39",
+      "perc": 100.0,
+      "rank": 65,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Chopin",
+      "title": "Valse en la mineur B. 150",
+      "perc": 100.0,
+      "rank": 66,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    },
+    {
+      "composer": "Chopin",
+      "title": "Sostenuto en Mib Majeur B. 133",
+      "perc": 100.0,
+      "rank": 67,
+      "tags": [
+        "Chap. V.",  "Chap. V. Mod. 6"
+      ],
+      "day_pattern": null,
+      "notes": ""
+    }
+  ],
+  "num_days": 8,
+  "expected_num_pieces_per_day": 20.0,
+  "composers": [
+    "Sibmol",
+    "Sibmol d'ap. Czerny",
+    "Gurlitt",
+    "Chopin",
+    "Gnyesina",
+    "Mozart",
+    "Petzold",
+    "Rubbakh",
+    "Schubert",
+    "Bartok",
+    "Sibmol / Lemoine",
+    "Corelli",
+    "Diabelli",
+    "Witthauer",
+    "Bach",
+    "Czerny",
+    "Hummel",
+    "Kozeluch",
+    "Schumann",
+    "Clementi",
+    "Beethoven",
+    "Burgmüller",
+    "Zipoli",
+    "Chizat",
+    "Bizet",
+    "Tchaïkovski",
+    "Verdi",
+    "Howard & Emerson",
+    "Joplin",
+    "Gershwin",
+    "Satie"
+  ]
+}

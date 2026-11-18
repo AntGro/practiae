@@ -1,0 +1,164 @@
+/* Practiae front-only. CSS variables only — works in dark and light mode. */
+:root {
+  --bg: #f7f5f2; --surface: #ffffff; --surface2: #efeae6;
+  --text: #1c1a17; --muted: #6b6560; --border: #ddd6cf;
+  --accent: #5a178a; --accent2: #7a4212; --danger: #b3261e;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #171512; --surface: #221f1c; --surface2: #2e2a26;
+    --text: #f0ebe6; --muted: #a89f96; --border: #3d3833; --accent: #c9a0e8; --accent2: #e0a878; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font-family: "DM Sans", system-ui, sans-serif; line-height: 1.45; }
+h1 { margin: 0; font-family: Georgia, serif; font-size: 1.6rem; }
+h2 { font-size: 1.15rem; margin: 1.5rem 0 .5rem; }
+h3 { font-size: 1rem; margin: 1rem 0 .5rem; }
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+.subtitle { margin: 0; color: var(--muted); font-size: .9rem; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  padding: 1rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.top-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.layout { display: grid; grid-template-columns: 240px 1fr; gap: 1.5rem; padding: 1.5rem; max-width: 1400px; margin: 0 auto; }
+@media (max-width: 800px) {
+  .layout { grid-template-columns: 1fr; }
+  .program-settings { flex-direction: column; align-items: stretch; }
+  .program-settings label { display: flex; flex-direction: column; gap: .25rem; }
+  .program-settings input { width: 100%; }
+}
+.programs { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; height: fit-content; }
+.programs ul { list-style: none; padding: 0; margin: 0 0 1rem; }
+.program-item { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px;
+  padding: .5rem; cursor: pointer; color: var(--text); }
+.program-item:hover { background: var(--surface2); }
+.program-item.active { background: var(--accent); color: #fff; }
+.program-item.active .program-meta { color: #e8d5f5; }
+.program-name { display: block; font-weight: 600; }
+.program-meta { font-size: .8rem; color: var(--muted); }
+.program-actions { display: flex; gap: .4rem; margin-top: .75rem; flex-wrap: wrap; }
+.btn { background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: .45rem .8rem; cursor: pointer; font: inherit; }
+.btn:hover { background: var(--surface2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { color: var(--danger); }
+.btn.small { padding: .25rem .5rem; font-size: .85rem; }
+.btn.active { outline: 2px solid var(--accent); }
+.btn:disabled { opacity: .5; cursor: wait; }
+.badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 999px; padding: .2rem .6rem; font-size: .85rem; }
+.badge[data-state="error"] { color: var(--danger); border-color: var(--danger); }
+.badge[data-state="saving"] { opacity: .7; }
+.row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .75rem 0; }
+.row .grow { flex: 1; }
+label { font-size: .9rem; }
+input[type="text"], input[type="number"], input[type="search"], textarea { background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: .4rem .5rem; font: inherit; }
+input[type="text"] { width: 100%; }
+textarea { width: 100%; }
+.pieces-table, .routine-table { width: 100%; border-collapse: collapse; background: var(--surface); }
+.pieces-table th, .pieces-table td, .routine-table th, .routine-table td {
+  border-bottom: 1px solid var(--border); padding: .45rem .5rem; text-align: left; vertical-align: middle; }
+.pieces-table th { font-size: .85rem; color: var(--muted); }
+.pieces-table input[type="range"] { width: 110px; vertical-align: middle; }
+/* Slider + its % stay on one line (table cell and mobile card alike). */
+.perc-wrap { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; }
+.perc-val { display: inline-block; min-width: 3ch; }
+.tag { display: inline-block; border: 1px solid var(--tag-color, var(--accent)); color: var(--tag-color, var(--accent));
+  border-radius: 999px; padding: 0 .45rem; font-size: .8rem; margin: 1px 2px 1px 0; }
+.editable { cursor: text; }
+.empty { color: var(--muted); text-align: center; }
+.inline-edit { width: 100%; }
+.filter-tags { display: flex; gap: .5rem; flex-wrap: wrap; }
+.filter-tag { font-size: .85rem; }
+.chart-row { display: flex; gap: .5rem; align-items: center; margin: .25rem 0; }
+.chart-day { width: 90px; font-size: .85rem; }
+.chart-bar { flex: 1; display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--surface2); }
+.chart-seg { height: 100%; }
+.chart-total { width: 3.5ch; text-align: right; font-size: .85rem; flex-shrink: 0; }
+/* Wide tables scroll horizontally instead of squeezing on narrow screens. */
+.table-scroll { overflow-x: auto; max-width: 100%; }
+.table-scroll table { min-width: 720px; }
+/* Grid children default to min-width:auto, which lets a wide table stretch
+   the whole column (and the page) instead of scrolling inside its wrapper. */
+.layout > * { min-width: 0; }
+@media (prefers-color-scheme: dark) {
+  /* Tag colours are ported from Flask; "Chap. I." is near-black and would
+     vanish on a dark surface, so tags and chart segments are lightened. */
+  .tag { color: color-mix(in srgb, var(--tag-color) 55%, white);
+    border-color: color-mix(in srgb, var(--tag-color) 55%, white); }
+  .chart-seg, .legend-item i { filter: brightness(1.7); }
+}
+.legend { display: flex; gap: .75rem; flex-wrap: wrap; font-size: .85rem; margin-top: .5rem; }
+.legend-item i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: .3rem; }
+.days-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .4rem; margin: 1rem 0; }
+dialog { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; max-width: 520px; width: calc(100% - 2rem); }
+dialog::backdrop { background: rgba(0,0,0,.4); }
+.draft-piece { display: block; margin: .25rem 0; }
+/* Demo mode: Drive controls are hidden — same UI otherwise. */
+body.demo .drive-only { display: none; }
+
+/* ---- Mobile rethink (≤800px): cards, not tables ----
+   Desktop keeps the dense 9-column table and 8-column routine grid.
+   On a phone those tables are unusable, so mobile swaps in:
+   - piece cards (big title, full-width slider, tap-to-edit, thumb actions)
+   - a day-by-day routine view (chips + prev/next, one day's list)
+   - a sticky Generate bar so the action is always in reach
+   - programs as a horizontal chip row, filters as tap-sized pills.
+   The card list and the table render from the same data and share the
+   same data-actions, so one delegated handler serves both. */
+.pieces-cards, .routine-mobile, .mobile-bar { display: none; }
+#search-pieces { flex: 1 1 180px; min-width: 140px; }
+@media (max-width: 800px) {
+  body { padding-bottom: 4.5rem; }
+  .topbar { padding: .75rem 1rem; }
+  h1 { font-size: 1.3rem; }
+  .layout { padding: 1rem; gap: 1rem; }
+  /* 44px minimum touch targets. */
+  .btn { min-height: 44px; }
+  .btn.small { min-height: 44px; padding: .5rem .75rem; }
+  /* Programs: horizontal chip row instead of a tall list. */
+  .programs ul { display: flex; gap: .5rem; overflow-x: auto; }
+  .program-item { width: auto; white-space: nowrap; flex-shrink: 0; }
+  .program-item .program-meta { display: none; }
+  /* Filters: search first and full-width, tags as pills. */
+  #search-pieces { order: -1; flex-basis: 100%; min-height: 44px; }
+  .filter-tag { padding: .45rem .7rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+  .filter-tag input { accent-color: var(--accent); }
+  /* Pieces: cards in, table out. */
+  .table-scroll:has(.pieces-table) { display: none; }
+  .pieces-cards { display: flex; flex-direction: column; gap: .75rem; }
+  .piece-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .85rem 1rem; }
+  .card-head { display: flex; justify-content: space-between; gap: .5rem; align-items: flex-start; }
+  .card-title { font-weight: 700; font-size: 1.05rem; }
+  .card-composer { color: var(--muted); }
+  .card-rank { color: var(--muted); font-size: .85rem; flex-shrink: 0; }
+  .card-freq { display: flex; align-items: center; gap: .5rem; margin: .6rem 0 .4rem; }
+  .card-freq .perc-wrap { flex: 1; display: flex; align-items: center; gap: .5rem; min-width: 0; }
+  .card-freq input[type="range"] { flex: 1; min-width: 0; height: 28px; accent-color: var(--accent); }
+  .perc-val { font-weight: 600; min-width: 3.5ch; }
+  .card-freq-hint { color: var(--muted); font-size: .85rem; }
+  .card-tags { display: flex; flex-wrap: wrap; gap: .3rem; margin: .25rem 0 .5rem; }
+  .card-meta { margin: .25rem 0; }
+  .card-actions { display: flex; gap: .5rem; margin-top: .6rem; }
+  .card-actions .btn { flex: 1; min-width: 0; }
+  /* Routine: one day at a time, table out. */
+  #routine-box { display: none; }
+  .routine-mobile { display: block; }
+  .day-nav { display: flex; gap: .5rem; align-items: flex-start; margin: .5rem 0; }
+  .day-nav > .btn { flex-shrink: 0; min-width: 44px; }
+  .day-chips { display: flex; gap: .35rem; overflow-x: auto; flex: 1; padding-bottom: .25rem; }
+  .day-chip { flex-shrink: 0; min-height: 44px; padding: .4rem .7rem; border: 1px solid var(--border);
+    border-radius: 999px; background: var(--surface); color: var(--text); }
+  .day-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .day-list { list-style: none; padding: 0; margin: .5rem 0; }
+  .day-list li { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .85rem; margin-bottom: .5rem; }
+  /* The Generate button lives in the sticky bar on mobile. */
+  .program .row [data-action="generate"] { display: none; }
+  .chart-day { width: 64px; }
+  /* Sticky bottom bar: Generate is always in reach, with the live count. */
+  .mobile-bar { display: flex; position: sticky; bottom: 0; z-index: 10; background: var(--surface);
+    border-top: 1px solid var(--border); padding: .6rem 1rem; gap: .75rem;
+    align-items: center; justify-content: space-between; box-shadow: 0 -4px 12px rgba(0, 0, 0, .08); }
+  .mobile-bar .btn.primary { flex-shrink: 0; }
+}
