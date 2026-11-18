@@ -125,6 +125,46 @@ try {
   check('added piece persists across reload',
     (await page.locator('#pieces-body tr').count()) === 69);
 
+  // Regression checks from the fuzz campaign (seed 1, Nov 18):
+  // 1. A tag filter must not survive a program switch — its checkboxes
+  //    are built from the current program's tags only, so a stale filter
+  //    left the new program empty with no way to clear it.
+  await page.locator('[data-filter-tag="Chap. III."]').check();
+  check('tag filter narrows the list', (await page.locator('#pieces-body tr[data-piece-id]').count()) === 22);
+  await page.click('[data-action="add-program"]');
+  await page.waitForTimeout(200);
+  check('tag filter is cleared on program switch',
+    (await page.locator('[data-filter-tag]:checked').count()) === 0);
+  await page.click('[data-action="add-piece"]');
+  check('new program shows its pieces (no stale filter)',
+    (await page.locator('#pieces-body tr[data-piece-id]').count()) === 1);
+  // 2. Typing in #day-names then clicking a button must not swallow the
+  //    click (blur fired `change` -> full render -> button replaced).
+  await page.locator('#day-names').fill('Mon, Tue, Wed, Thu, Fri, Sat, Sun, Mon');
+  await page.locator('#day-names').dispatchEvent('change');
+  await page.click('[data-action="generate"]');
+  await page.waitForSelector('.routine-table', { timeout: 5000 });
+  check('day-names edit then Generate click is not swallowed',
+    (await page.locator('.routine-table').count()) === 1);
+  // 3. num-days 0 clamps to 1, not to the 8 default.
+  await page.locator('#num-days').fill('0');
+  await page.locator('#num-days').dispatchEvent('change');
+  check('num-days 0 -> 1', (await page.locator('#num-days').inputValue()) === '1');
+  // 4. Dialog Close buttons work (inline onclick was blocked by the CSP).
+  await page.click('[data-action="open-settings"]');
+  await page.waitForSelector('#settings-dialog[open]');
+  await page.locator('#settings-dialog .row .btn:not(.primary):not(.drive-only)').click();
+  check('settings dialog Close button closes it',
+    !(await page.locator('#settings-dialog').evaluate((d) => d.open)));
+  // 5. Export of the default program ("Toutes les pièces") downloads
+  //    under an ASCII name — Chrome falls back to "download" for
+  //    non-ASCII blob filenames.
+  await page.click('[data-action="switch-program"]');
+  const dl = page.waitForEvent('download', { timeout: 5000 });
+  await page.click('[data-action="export-json"]');
+  check('export filename is ASCII-sanitised',
+    (await dl).suggestedFilename() === 'Toutes_les_pieces.json');
+
   check('no console errors', consoleErrors.length === 0, consoleErrors.join(' | '));
   check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
 

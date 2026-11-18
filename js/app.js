@@ -55,6 +55,14 @@ function persist() {
   }).catch((e) => setStatus('error', String(e.message || e)));
 }
 function mutate(fn) { fn(); renumber(currentProgram(doc)); persist(); render(); }
+// State update without a render. Used by change handlers on plain inputs
+// (#num-days, #day-names): a `change` event fires on blur, and a full
+// render there would replace the element under the cursor between
+// mousedown and mouseup — the click that follows never fires (the user
+// has to click twice). The input already shows what was typed, so the
+// handler syncs the affected input values directly instead; the next
+// mutate() renders everything.
+function mutateNoRender(fn) { fn(); renumber(currentProgram(doc)); persist(); }
 
 function prog() { return currentProgram(doc); }
 
@@ -265,6 +273,7 @@ function startTextEdit(cell, field, id) {
   const p = prog(); const piece = p.pieces.find((x) => x.id === id);
   if (!piece || cell.querySelector('input')) return;
   const old = field === 'duration_min' ? String(piece.duration_min || '') : String(piece[field] || '');
+  const originalHTML = cell.innerHTML; // restore on cancel (no full render — see below)
   cell.innerHTML = `<input class="inline-edit" value="${esc(old)}" aria-label="Edit ${field}">`;
   const input = cell.querySelector('input');
   input.focus(); input.select();
@@ -276,20 +285,24 @@ function startTextEdit(cell, field, id) {
       else piece[field] = v;
     });
   };
-  const cancel = () => { if (done) return; done = true; render(); };
+  // Cancel runs on blur — a full render here would replace the element
+  // under the cursor between mousedown and mouseup and swallow the click
+  // that caused the blur, so just put the cell back as it was.
+  const cancel = () => { if (done) return; done = true; cell.innerHTML = originalHTML; };
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); e.stopPropagation(); });
   input.addEventListener('blur', cancel);
 }
 function startTagsEdit(cell, id) {
   const p = prog(); const piece = p.pieces.find((x) => x.id === id);
   if (!piece || cell.querySelector('input')) return;
+  const originalHTML = cell.innerHTML; // restore on cancel (no full render — see startTextEdit)
   cell.innerHTML = `<input class="inline-edit" value="${esc((piece.tags || []).join(', '))}" placeholder="tag1, tag2" aria-label="Edit tags">`;
   const input = cell.querySelector('input');
   input.focus(); input.select();
   let done = false;
   const save = () => { if (done) return; done = true;
     mutate(() => { piece.tags = input.value.split(',').map((t) => t.trim()).filter(Boolean); }); };
-  const cancel = () => { if (done) return; done = true; render(); };
+  const cancel = () => { if (done) return; done = true; cell.innerHTML = originalHTML; };
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); e.stopPropagation(); });
   input.addEventListener('blur', cancel);
 }
@@ -361,18 +374,22 @@ document.addEventListener('click', async (e) => {
   const id = el.dataset.id;
   const p = prog();
   switch (action) {
-    case 'switch-program': mutate(() => { doc.current_program_id = id; doc.programs.forEach((x) => { x.is_current = x.id === id; }); }); break;
+    // Switching programs clears the tag filter: tag checkboxes are built
+    // from the current program's tags only, so a filter from another
+    // program would keep filtering with no checkbox to clear it — the
+    // list showed 0 pieces and even Add piece stayed invisible.
+    case 'switch-program': filterTags = []; mutate(() => { doc.current_program_id = id; doc.programs.forEach((x) => { x.is_current = x.id === id; }); }); break;
     case 'add-program': { const np = blankProgram({ name: `Program ${doc.programs.length + 1}`, order_index: doc.programs.length });
-      mutate(() => { doc.programs.push(np); doc.current_program_id = np.id; }); break; }
+      filterTags = []; mutate(() => { doc.programs.push(np); doc.current_program_id = np.id; }); break; }
     case 'rename-program': { const name = prompt('Program name', p.name); if (name?.trim()) mutate(() => { p.name = name.trim(); }); break; }
     case 'duplicate-program': { const copy = JSON.parse(JSON.stringify(p));
       copy.id = uid(); copy.name = `${p.name} (copy)`; copy.pieces.forEach((pc) => { pc.id = uid(); });
       // group ids must follow the new piece ids
       const oldToNew = new Map(p.pieces.map((pc, i) => [pc.id, copy.pieces[i].id]));
       for (const k of ['exclusion_groups', 'inclusion_groups']) copy[k] = p[k].map((g) => g.map((x) => oldToNew.get(x)).filter(Boolean));
-      mutate(() => { doc.programs.push(copy); doc.current_program_id = copy.id; }); break; }
+      filterTags = []; mutate(() => { doc.programs.push(copy); doc.current_program_id = copy.id; }); break; }
     case 'delete-program': if (doc.programs.length > 1 && confirm(`Delete program “${p.name}” and its ${p.pieces.length} pieces?`)) {
-      mutate(() => { doc.programs = doc.programs.filter((x) => x.id !== p.id); doc.current_program_id = doc.programs[0].id; }); } break;
+      filterTags = []; mutate(() => { doc.programs = doc.programs.filter((x) => x.id !== p.id); doc.current_program_id = doc.programs[0].id; }); } break;
     case 'add-piece': mutate(() => { const np = blankPiece({ title: 'New piece', rank: p.pieces.length }); p.pieces.push(np); }); break;
     case 'delete-piece': if (confirm('Delete this piece?')) mutate(() => {
       p.pieces = p.pieces.filter((x) => x.id !== id);
@@ -408,6 +425,9 @@ document.addEventListener('click', async (e) => {
     case 'mode-drive': await switchMode('drive'); break;
     case 'sign-out-drive': clearDriveToken(); if (mode === 'drive') await switchMode('local'); setStatus('saved', 'Signed out of Drive'); break;
     case 'open-settings': $('#settings-dialog').showModal(); break;
+    // Dialog Close/Cancel buttons (no inline onclick — those are blocked
+    // by the CSP, see the dialogs in app.html).
+    case 'close-dialog': el.closest('dialog')?.close(); break;
     case 'save-settings': { const v = $('#setting-client-id').value.trim(); if (v) { saveClientId(v); clientId = v; } $('#settings-dialog').close(); break; }
   }
 });
@@ -445,22 +465,30 @@ document.addEventListener('change', (e) => {
   if (e.target.id === 'hide-zero') { hideZero = e.target.checked; renderPieces(); }
   if (e.target.id === 'tag-dist-mode') { chartMode = e.target.checked ? 'duration' : 'count'; renderRoutine(); }
   if (e.target.id === 'num-days') {
-    const p = prog(); const n = clamp(parseInt(e.target.value, 10) || 8, 1, 31);
-    mutate(() => {
+    // Empty input -> 8 (the default); 0 is clamped to 1, not to 8 —
+    // `parseInt(...) || 8` used to send 0 to 8 as well.
+    const p = prog(); const raw = parseInt(e.target.value, 10);
+    const n = clamp(Number.isNaN(raw) ? 8 : raw, 1, 31);
+    // No render here (see mutateNoRender): `change` fires on blur and a
+    // render would swallow the click that caused the blur.
+    mutateNoRender(() => {
       p.num_days = n;
       p.day_names = Array.from({ length: n }, (_, i) => p.day_names[i] || `Jour ${i + 1}`);
       p.pieces.forEach((pc) => { if (pc.custom_days) pc.custom_days = pc.custom_days.filter((d) => d < n); });
     });
+    e.target.value = String(n);
+    $('#day-names').value = p.day_names.join(', ');
   }
   if (e.target.id === 'day-names') {
     const p = prog();
-    mutate(() => { p.day_names = e.target.value.split(',').map((s) => s.trim()).filter(Boolean).slice(0, p.num_days);
+    mutateNoRender(() => { p.day_names = e.target.value.split(',').map((s) => s.trim()).filter(Boolean).slice(0, p.num_days);
       while (p.day_names.length < p.num_days) p.day_names.push(`Jour ${p.day_names.length + 1}`); });
+    e.target.value = p.day_names.join(', ');
   }
   if (e.target.id === 'import-file' && e.target.files?.[0]) {
     const file = e.target.files[0];
     file.text().then((text) => {
-      try { doc = normaliseDoc(JSON.parse(text)); persist(); render(); }
+      try { doc = normaliseDoc(JSON.parse(text)); filterTags = []; persist(); render(); }
       catch { alert('That file is not valid Practiae / Flask routine JSON.'); }
     });
     e.target.value = '';

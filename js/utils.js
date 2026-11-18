@@ -35,9 +35,14 @@ export function clamp(n, min, max) {
 }
 
 export function download(filename, text, mime = 'application/json') {
+  // Chrome falls back to the name "download" for blob-URL downloads whose
+  // download attribute contains non-ASCII characters — the default
+  // program "Toutes les pièces" always exported as "download". Strip
+  // diacritics and anything outside [A-Za-z0-9._-] first.
+  const safe = filename.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_');
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
+  a.href = url; a.download = safe; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

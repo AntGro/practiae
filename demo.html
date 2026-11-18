@@ -102,14 +102,14 @@
   <div id="days-grid" class="days-grid"></div>
   <p class="muted small">No day ticked = the piece is placed by frequency, not on fixed days.</p>
   <div class="row"><button class="btn primary" id="days-save">Save</button>
-  <button class="btn" onclick="this.closest('dialog').close()">Cancel</button></div>
+  <button class="btn" data-action="close-dialog">Cancel</button></div>
 </dialog>
 
 <dialog id="notes-dialog">
   <h3>Notes</h3>
   <textarea id="notes-text" rows="6"></textarea>
   <div class="row"><button class="btn primary" id="notes-save">Save</button>
-  <button class="btn" onclick="this.closest('dialog').close()">Cancel</button></div>
+  <button class="btn" data-action="close-dialog">Cancel</button></div>
 </dialog>
 
 <dialog id="settings-dialog">
@@ -121,7 +121,7 @@
   <div class="row">
     <button class="btn primary" data-action="save-settings">Save</button>
     <button class="btn drive-only" data-action="sign-out-drive">Sign out of Drive</button>
-    <button class="btn" onclick="this.closest('dialog').close()">Close</button>
+    <button class="btn" data-action="close-dialog">Close</button>
   </div>
 </dialog>
 
