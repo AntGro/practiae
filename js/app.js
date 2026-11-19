@@ -110,7 +110,7 @@ function pieceCard(p, numDays) {
     </div>
     <label class="card-freq"><span class="perc-wrap"><input type="range" min="0" max="100" step="${freqStep(numDays)}" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
       <span class="perc-val">${freqDays(p.perc, numDays)}</span></span><span class="card-freq-hint">of days</span></label>
-    ${tags ? `<div class="card-tags editable" data-action="edit-tags" data-id="${esc(p.id)}">${tags}</div>` : ''}
+    ${`<div class="card-tags editable" data-action="edit-tags" data-id="${esc(p.id)}">${tags || '<span class="muted">Add tags</span>'}</div>`}
     <div class="card-meta"><button class="btn small" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}">${formatDuration(p.duration_min) || 'Add duration'}</button></div>
     <div class="card-actions">
       <button class="btn" data-action="edit-days" data-id="${esc(p.id)}">${esc(daysLabel)}</button>
@@ -330,19 +330,50 @@ function startTextEdit(cell, field, id) {
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); e.stopPropagation(); });
   input.addEventListener('blur', cancel);
 }
-function startTagsEdit(cell, id) {
-  const p = prog(); const piece = p.pieces.find((x) => x.id === id);
-  if (!piece || cell.querySelector('input')) return;
-  const originalHTML = cell.innerHTML; // restore on cancel (no full render — see startTextEdit)
-  cell.innerHTML = `<input class="inline-edit" value="${esc((piece.tags || []).join(', '))}" placeholder="tag1, tag2" aria-label="Edit tags">`;
-  const input = cell.querySelector('input');
-  input.focus(); input.select();
-  let done = false;
-  const save = () => { if (done) return; done = true;
-    mutate(() => { piece.tags = input.value.split(',').map((t) => t.trim()).filter(Boolean); }); };
-  const cancel = () => { if (done) return; done = true; cell.innerHTML = originalHTML; };
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); e.stopPropagation(); });
-  input.addEventListener('blur', cancel);
+// Tags editor (Notion-style): a dialog listing the program's tags with a
+// search box. Tap a tag to toggle it on this piece; type a new name and
+// tap "Create" (or Enter) to add it. Changes apply live — no Save step —
+// so the dialog rebuilds its own content after every toggle while the
+// background list re-renders behind it.
+function openTagsDialog(id) {
+  const dlg = $('#tags-dialog');
+  dlg.dataset.pieceId = id;
+  const piece = prog().pieces.find((x) => x.id === id);
+  $('#tags-dialog-title').textContent = `Tags for ${piece?.title || 'piece'}`;
+  $('#tags-search').value = '';
+  renderTagsDialog();
+  dlg.showModal();
+}
+
+function renderTagsDialog() {
+  const dlg = $('#tags-dialog');
+  const p = prog(); const piece = p?.pieces.find((x) => x.id === dlg.dataset.pieceId);
+  if (!piece) return;
+  const q = ($('#tags-search').value || '').trim();
+  const qLower = q.toLowerCase();
+  // Current tags as chips; × removes the tag from this piece only.
+  $('#tags-chips').innerHTML = (piece.tags || []).map((t) =>
+    `<span class="tag" style="--tag-color:${esc(tagColor(t))}">${esc(t)} <button class="tag-remove" data-tag-remove="${esc(t)}" aria-label="Remove ${esc(t)}">×</button></span>`).join('')
+    || '<span class="muted small">No tags yet.</span>';
+  // All program tags, filtered by the search; ticked when on this piece.
+  const allTags = [...new Set(p.pieces.flatMap((x) => x.tags || []))].sort();
+  const shown = allTags.filter((t) => !qLower || t.toLowerCase().includes(qLower));
+  const createRow = q && !allTags.some((t) => t.toLowerCase() === qLower)
+    ? `<button class="tag-option tag-create" data-tag-create="${esc(q)}">Create “${esc(q)}”</button>` : '';
+  $('#tags-options').innerHTML = shown.map((t) =>
+    `<button class="tag-option${(piece.tags || []).includes(t) ? ' selected' : ''}" data-tag-toggle="${esc(t)}"><span class="tag-tick" aria-hidden="true">${(piece.tags || []).includes(t) ? '✓' : ''}</span><span class="tag" style="--tag-color:${esc(tagColor(t))}">${esc(t)}</span></button>`).join('')
+    + createRow || '<span class="muted small">No matching tag.</span>';
+}
+
+function createTagInDialog(name) {
+  const piece = prog()?.pieces.find((x) => x.id === $('#tags-dialog').dataset.pieceId);
+  if (!piece || !name) return;
+  // Case-insensitive dedup: creating "chap. iii." must not spawn a second
+  // tag next to the existing "Chap. III.".
+  mutate(() => { if (!(piece.tags || []).some((t) => t.toLowerCase() === name.toLowerCase())) piece.tags = [...(piece.tags || []), name]; });
+  $('#tags-search').value = '';
+  renderTagsDialog();
+  $('#tags-search').focus();
 }
 function openDaysDialog(id) {
   const p = prog(); const piece = p.pieces.find((x) => x.id === id);
@@ -441,7 +472,7 @@ document.addEventListener('click', async (e) => {
     case 'edit-text': { const tap = window.matchMedia('(max-width: 800px)').matches;
       if (e.detail === 2 || (tap && e.detail === 1)) startTextEdit(el, el.dataset.field, id); break; }
     case 'edit-tags': { const tap = window.matchMedia('(max-width: 800px)').matches;
-      if (e.detail === 2 || (tap && e.detail === 1)) startTagsEdit(el, id); break; }
+      if (e.detail === 2 || (tap && e.detail === 1)) openTagsDialog(id); break; }
     case 'routine-day': { const d = +el.dataset.day;
       const r = prog()?.pinned_routine; if (!r || Number.isNaN(d)) break;
       routineDay = Math.max(0, Math.min(d, r.columns.length - 1)); renderRoutine(); break; }
@@ -558,6 +589,35 @@ $('#notes-save')?.addEventListener('click', () => {
   const dlg = $('#notes-dialog'); const id = dlg.dataset.pieceId;
   mutate(() => { const piece = prog().pieces.find((x) => x.id === id); if (piece) piece.notes = $('#notes-text').value; });
   dlg.close();
+});
+// Tags dialog: live-apply toggles (a mutate() re-renders the background
+// list; the dialog rebuilds its own content so it stays open and in sync).
+$('#tags-dialog')?.addEventListener('click', (e) => {
+  const piece = prog()?.pieces.find((x) => x.id === $('#tags-dialog').dataset.pieceId);
+  if (!piece) return;
+  const toggle = e.target.closest('[data-tag-toggle]');
+  const remove = e.target.closest('[data-tag-remove]');
+  const create = e.target.closest('[data-tag-create]');
+  if (toggle) {
+    const t = toggle.dataset.tagToggle;
+    mutate(() => { piece.tags = (piece.tags || []).includes(t) ? piece.tags.filter((x) => x !== t) : [...(piece.tags || []), t]; });
+    renderTagsDialog();
+  } else if (remove) {
+    const t = remove.dataset.tagRemove;
+    mutate(() => { piece.tags = (piece.tags || []).filter((x) => x !== t); });
+    renderTagsDialog();
+  } else if (create) {
+    createTagInDialog(create.dataset.tagCreate);
+  }
+});
+$('#tags-search')?.addEventListener('input', () => renderTagsDialog());
+$('#tags-search')?.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const q = e.target.value.trim();
+  if (!q) return;
+  const p = prog();
+  if (p.pieces.flatMap((x) => x.tags || []).some((t) => t.toLowerCase() === q.toLowerCase())) return; // exact match exists — tap its row to toggle
+  createTagInDialog(q);
 });
 
 // ---------- boot ----------

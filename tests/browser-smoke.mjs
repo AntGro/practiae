@@ -163,6 +163,50 @@ try {
   check('duration edit with min/sec boxes saves as 2:20',
     (await page.locator('#pieces-body tr').first().locator('td[data-field="duration_min"]').textContent())?.trim() === '2:20');
 
+  // Tags dialog (Notion-style, live-apply): toggle a tag off, create a new
+  // one, Done closes; the edits persist across reload. Chip/tag reads use
+  // the data-* attributes, not substring matching: tag names are
+  // hierarchical ("Chap. III." is a prefix of "Chap. III. Mod. 1").
+  const chipTags = () => page.locator('#tags-chips [data-tag-remove]')
+    .evaluateAll((els) => els.map((el) => el.dataset.tagRemove));
+  const rowTags = () => page.locator('td[data-action="edit-tags"]:has(.tag)').first().locator('.tag')
+    .evaluateAll((els) => els.map((el) => el.textContent.trim()));
+  const tagsCell = page.locator('td[data-action="edit-tags"]:has(.tag)').first();
+  await tagsCell.dblclick();
+  await page.waitForSelector('#tags-dialog[open]', { timeout: 5000 });
+  const removedTag = await page.locator('#tags-options .tag-option.selected').first().getAttribute('data-tag-toggle');
+  await page.locator('#tags-options .tag-option.selected').first().click();
+  await page.waitForTimeout(200);
+  check('tags dialog toggles a tag off (live-apply)',
+    !(await chipTags()).includes(removedTag));
+  await page.fill('#tags-search', 'brand new tag');
+  await page.waitForTimeout(200);
+  await page.locator('[data-tag-create]').click();
+  await page.waitForTimeout(200);
+  check('tags dialog Create row adds the new tag as a chip',
+    (await chipTags()).includes('brand new tag'));
+  await page.locator('#tags-dialog [data-action="close-dialog"]').click();
+  await page.waitForTimeout(200);
+  check('Done closes the tags dialog', !(await page.locator('#tags-dialog').evaluate((d) => d.open)));
+  const cellAfter = await rowTags();
+  check('tags dialog edits are live on the row',
+    cellAfter.includes('brand new tag') && !cellAfter.includes(removedTag));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForSelector('#pieces-body tr');
+  const cellPersisted = await rowTags();
+  check('tags dialog edits persist across reload',
+    cellPersisted.includes('brand new tag') && !cellPersisted.includes(removedTag));
+  // Restore the removed tag: the regression checks below count the seed's
+  // "Chap. III." pieces (22), so the test must leave the seed intact.
+  await page.locator('td[data-action="edit-tags"]:has(.tag)').first().dblclick();
+  await page.waitForSelector('#tags-dialog[open]', { timeout: 5000 });
+  await page.locator(`#tags-options [data-tag-toggle="${removedTag}"]`).click();
+  await page.waitForTimeout(200);
+  await page.locator('#tags-dialog [data-action="close-dialog"]').click();
+  await page.waitForTimeout(200);
+  check('tags dialog toggles a tag back on',
+    (await rowTags()).includes(removedTag));
+
   // Add a piece.
   await page.click('[data-action="add-piece"]');
   const rowsAfter = await page.locator('#pieces-body tr').count();
@@ -188,6 +232,11 @@ try {
   await page.click('[data-action="add-piece"]');
   check('new program shows its pieces (no stale filter)',
     (await page.locator('#pieces-body tr[data-piece-id]').count()) === 1);
+  // 2b. An untagged piece's card shows an "Add tags" affordance (the tags
+  //     element used to render only when tags existed, so tags could not be
+  //     added to an untagged piece on phone).
+  check('untagged piece card shows Add tags',
+    (await page.locator('.piece-card .card-tags').first().textContent())?.includes('Add tags'));
   // 2. Typing in #day-names then clicking a button must not swallow the
   //    click (blur fired `change` -> full render -> button replaced).
   await page.locator('#day-names').fill('Mon, Tue, Wed, Thu, Fri, Sat, Sun, Mon');
@@ -257,6 +306,19 @@ try {
   await mob.waitForTimeout(300);
   check('mobile: tap title edits it',
     (await mob.locator('.card-title').first().textContent())?.includes('Mobile edit test'));
+  // Tap a card's tags to open the tags dialog (phone path: single tap).
+  await mob.locator('.card-tags').first().click();
+  await mob.waitForSelector('#tags-dialog[open]', { timeout: 5000 });
+  const mobChipTags = () => mob.locator('#tags-chips [data-tag-remove]')
+    .evaluateAll((els) => els.map((el) => el.dataset.tagRemove));
+  const mobRemoved = await mob.locator('#tags-options .tag-option.selected').first().getAttribute('data-tag-toggle');
+  await mob.locator('#tags-options .tag-option.selected').first().click();
+  await mob.waitForTimeout(200);
+  check('mobile: tags dialog toggles a tag off',
+    !(await mobChipTags()).includes(mobRemoved));
+  await mob.locator('#tags-dialog [data-action="close-dialog"]').click();
+  await mob.waitForTimeout(200);
+  check('mobile: Done closes the tags dialog', !(await mob.locator('#tags-dialog').evaluate((d) => d.open)));
   // Generate from the sticky bar, then day-by-day routine view.
   await mob.click('.mobile-bar [data-action="generate"]');
   await mob.waitForSelector('.day-list li', { timeout: 10000 });
