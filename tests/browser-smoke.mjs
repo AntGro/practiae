@@ -78,6 +78,8 @@ try {
 
   // Generate (desktop button in the filters row; the sticky mobile bar
   // has a second one, hidden on desktop).
+  check('balance-by select defaults to Pieces',
+    (await page.locator('#balance-by').inputValue()) === 'pieces');
   await page.click('.filters [data-action="generate"]');
   await page.waitForSelector('.routine-table', { timeout: 10000 });
   const cols = await page.locator('.routine-table thead th').count();
@@ -91,6 +93,19 @@ try {
   check('tag chart Duration view shows minutes',
     /min$/.test((await page.locator('#tag-chart .tag-dist-col-total').first().textContent())?.trim() || ''));
   await page.uncheck('#tag-dist-mode');
+  // Balance-by Duration: switching the setting and regenerating still
+  // produces a routine (the optimizer's duration mode runs in-page).
+  await page.selectOption('#balance-by', 'duration');
+  await page.click('.filters [data-action="generate"]');
+  await page.waitForSelector('.routine-table', { timeout: 10000 });
+  check('regenerate with Balance by Duration keeps the routine table',
+    (await page.locator('.routine-table thead th').count()) === 9);
+  check('balance-by setting persists across reload',
+    await page.reload().then(async () => {
+      await page.waitForSelector('.routine-table', { timeout: 10000 });
+      return (await page.locator('#balance-by').inputValue()) === 'duration';
+    }));
+  await page.selectOption('#balance-by', 'pieces');
   // Routine cell highlighting (Flask feature): hover highlights the
   // same piece across all days; click pins it; Esc clears it.
   const firstCell = page.locator('.routine-table td[data-piece]').first();

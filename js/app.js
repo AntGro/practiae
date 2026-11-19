@@ -140,6 +140,7 @@ function renderPieces() {
   $('#pieces-count').textContent = pieces.length === p.pieces.length ? '' : `${pieces.length} of ${p.pieces.length} pieces shown`;
   $('#program-title').textContent = p.name;
   $('#num-days').value = p.num_days;
+  $('#balance-by').value = p.balance_by || 'pieces';
   $('#day-names').value = (p.day_names || []).join(', ');
   const allTags = [...new Set(p.pieces.flatMap((x) => x.tags || []))].sort();
   $('#filter-tags').innerHTML = allTags.map((t) =>
@@ -331,7 +332,7 @@ async function doGenerate(btn) {
   const p = prog(); if (!p) return;
   await guard(btn, async () => {
     const { exclusion, inclusion } = groupsAsRanks(p);
-    const gen = generateOptimizedRoutine({ num_days: p.num_days, pieces: generationPieces(p) }, exclusion, inclusion);
+    const gen = generateOptimizedRoutine({ num_days: p.num_days, pieces: generationPieces(p) }, exclusion, inclusion, { balanceBy: p.balance_by || 'pieces' });
     generated = gen;
     const maxRows = Math.max(0, ...gen.days.map((d) => d.length));
     const data = Array.from({ length: maxRows }, (_, r) =>
@@ -482,6 +483,12 @@ document.addEventListener('change', (e) => {
     });
     e.target.value = String(n);
     $('#day-names').value = p.day_names.join(', ');
+  }
+  if (e.target.id === 'balance-by') {
+    const p = prog();
+    // Applies on the next Generate; the existing routine is untouched.
+    mutateNoRender(() => { p.balance_by = e.target.value === 'duration' ? 'duration' : 'pieces'; });
+    e.target.value = p.balance_by;
   }
   if (e.target.id === 'day-names') {
     const p = prog();

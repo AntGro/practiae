@@ -53,3 +53,21 @@ for (const seed of [1, 2, 3]) {
   console.log(`  gap:     ${stats.gapBefore.toFixed(1)} -> ${stats.gapAfterPhase1.toFixed(1)} (phase 1) -> ${stats.gapAfter.toFixed(1)}`);
   console.log('  constraints:', problems.length ? `BROKEN: ${problems.join('; ')}` : 'all hold');
 }
+
+// Duration mode: same greedy start, but flatten minutes per day instead
+// of piece counts. Minutes per day use the same loads array (loads ==
+// counts in pieces mode, minutes in duration mode).
+const beforeDur = analyseRoutine(greedy, program, exclusionGroups, inclusionGroups, { balanceBy: 'duration' });
+console.log('\ngreedy minutes:', beforeDur.loads.join(' '));
+console.log(`greedy duration-balance: ${beforeDur.balance.toFixed(1)}  gap: ${beforeDur.gap.toFixed(1)}`);
+for (const seed of [1, 2, 3]) {
+  const { days, stats } = optimizeRoutine(program, greedy, exclusionGroups, inclusionGroups, { seed, balanceBy: 'duration' });
+  const problems = checkConstraints(program, greedy, days, exclusionGroups);
+  const mins = stats.loadsAfter;
+  console.log(`\nseed ${seed} duration mode (${stats.runtimeMs}ms, ${stats.acceptedMoves} accepted moves)`);
+  console.log('  minutes after:', mins.map((m) => Math.round(m)).join(' '), `(spread ${Math.round(Math.max(...mins) - Math.min(...mins))} min, greedy spread ${Math.round(Math.max(...beforeDur.loads) - Math.min(...beforeDur.loads))})`);
+  console.log('  counts after: ', stats.countsAfter.join(' '));
+  console.log(`  duration-balance: ${stats.balanceBefore.toFixed(1)} -> ${stats.balanceAfterPhase1.toFixed(1)} (phase 1) -> ${stats.balanceAfter.toFixed(1)}`);
+  console.log(`  gap: ${stats.gapBefore.toFixed(1)} -> ${stats.gapAfterPhase1.toFixed(1)} (phase 1) -> ${stats.gapAfter.toFixed(1)}`);
+  console.log('  constraints:', problems.length ? `BROKEN: ${problems.join('; ')}` : 'all hold');
+}

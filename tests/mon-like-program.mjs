@@ -11,7 +11,9 @@ export function monLikeProgram() {
     id: `p${i}`,
     rank: i,
     day_pattern: null,
-    duration_min: p.duration_min ?? 0,
+    // Deterministic varied durations (1-8 min, period 8) so the
+    // duration-balance mode has something to flatten.
+    duration_min: 1 + ((i * 5) % 8),
   }));
   const odd = [0, 2, 4, 6, 8, 10, 12, 14];
   const even = [1, 3, 5, 7, 9, 11, 13, 15];

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { generateRoutine, pieceLabel, parseDayPattern, computeTagDistribution } from '../js/generate.js';
 import { optimizeRoutine, analyseRoutine, generateOptimizedRoutine } from '../js/optimize.js';
 import { monLikeProgram } from './mon-like-program.mjs';
-import { normaliseDoc, seedFromDefault, groupsAsRanks } from '../js/store.js';
+import { normaliseDoc, normaliseProgram, blankProgram, seedFromDefault, groupsAsRanks } from '../js/store.js';
 import { formatDuration, parseDuration } from '../js/utils.js';
 import { readFileSync } from 'node:fs';
 
@@ -194,6 +194,44 @@ check('optimizer: small hand-built unbalanced routine gets flattened', () => {
   assert.deepEqual([...stats.countsAfter].sort((a, b) => a - b), [1, 1, 2, 2]);
   assert.ok(stats.gapAfter < 6, `gap ${stats.gapAfter} should beat 6`);
   assert.deepEqual(optCountOf(out), new Map([[0, 2], [1, 2], [2, 2]]));
+});
+
+check('optimizer: duration mode balances minutes per day', () => {
+  for (let run = 0; run < 3; run++) {
+    const { program, exclusionGroups, inclusionGroups } = monLikeProgram();
+    const { days: greedy } = generateRoutine(program, exclusionGroups, inclusionGroups);
+    const before = analyseRoutine(greedy, program, exclusionGroups, inclusionGroups, { balanceBy: 'duration' });
+    assert.ok(before.balance > 0, 'greedy minutes should be unbalanced here');
+    const { days, stats } = optimizeRoutine(program, greedy, exclusionGroups, inclusionGroups, { seed: 7, balanceBy: 'duration' });
+    assert.equal(stats.balanceBy, 'duration');
+    // Same hard constraints as pieces mode.
+    assert.deepEqual(optCountOf(days), optCountOf(greedy));
+    for (const day of days) assert.equal(new Set(day.map((p) => p.rank)).size, day.length);
+    for (const p of program.pieces) {
+      if (p.day_pattern != null) assert.deepEqual(optDaysOf(days, p.rank), p.day_pattern);
+    }
+    for (const [a, b] of exclusionGroups) {
+      for (const day of days) assert.ok(!(day.some((p) => p.rank === a) && day.some((p) => p.rank === b)));
+    }
+    // Minutes nearly flat (mean 73.3, so 73/74 is the floor) and gaps down.
+    const mins = stats.loadsAfter;
+    assert.ok(stats.balanceAfter < stats.balanceBefore, `duration balance ${stats.balanceBefore} -> ${stats.balanceAfter}`);
+    assert.ok(Math.max(...mins) - Math.min(...mins) <= 2, `minute spread ${Math.max(...mins) - Math.min(...mins)}`);
+    assert.ok(stats.gapAfter < stats.gapBefore, `gap ${stats.gapBefore} -> ${stats.gapAfter}`);
+    // The wired path with the option: its own minutes flat, same shape.
+    const wired = generateOptimizedRoutine(program, exclusionGroups, inclusionGroups, { seed: 7, balanceBy: 'duration' });
+    assert.equal(wired.stats.balanceBy, 'duration');
+    const wmins = wired.stats.loadsAfter;
+    assert.ok(Math.max(...wmins) - Math.min(...wmins) <= 2, `wired minute spread ${Math.max(...wmins) - Math.min(...wmins)}`);
+    assert.equal(wired.days.length, 16);
+  }
+});
+
+check('store: balance_by defaults to pieces, validates on load', () => {
+  assert.equal(blankProgram().balance_by, 'pieces');
+  assert.equal(normaliseProgram({ name: 'X', pieces: [] }).balance_by, 'pieces');
+  assert.equal(normaliseProgram({ name: 'X', pieces: [], balance_by: 'duration' }).balance_by, 'duration');
+  assert.equal(normaliseProgram({ name: 'X', pieces: [], balance_by: 'weird' }).balance_by, 'pieces');
 });
 
 check('optimizer: generateOptimizedRoutine is the wired Generate path', () => {

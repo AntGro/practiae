@@ -26,6 +26,7 @@ export function blankPiece(over = {}) {
 export function blankProgram(over = {}) {
   return { id: uid(), name: 'New program', num_days: 8,
     day_names: Array.from({ length: 8 }, (_, i) => `Jour ${i + 1}`),
+    balance_by: 'pieces',
     order_index: 0, is_current: false, pieces: [],
     exclusion_groups: [], inclusion_groups: [],
     pinned_routine: null, is_routine_pinned: false, ...over };
@@ -34,6 +35,7 @@ export function blankProgram(over = {}) {
 export function normaliseProgram(raw, orderIndex = 0) {
   const p = blankProgram({ ...raw, order_index: orderIndex });
   p.num_days = Math.max(1, Math.min(31, +p.num_days || 8));
+  p.balance_by = p.balance_by === 'duration' ? 'duration' : 'pieces';
   if (!Array.isArray(p.day_names) || p.day_names.length !== p.num_days) {
     p.day_names = Array.from({ length: p.num_days }, (_, i) =>
       (Array.isArray(raw?.day_names) && raw.day_names[i]) || `Jour ${i + 1}`);

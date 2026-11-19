@@ -44,19 +44,23 @@ function sortDays(days) {
 }
 
 /**
- * Score a routine. balance = sum of squared deviations of per-day counts
- * from the mean (0 iff every day has the same count, when the total
- * divides evenly). gap = sum over movable pieces with >= 2 occurrences
- * of squared deviations of each cyclic gap from that piece's ideal gap
+ * Score a routine. balance = sum of squared deviations of the balanced
+ * quantity from its mean (0 iff every day is equal, when the total divides
+ * evenly). The balanced quantity is piece counts (balanceBy 'pieces') or
+ * total minutes (balanceBy 'duration', from each piece's duration_min).
+ * gap = sum over movable pieces with >= 2 occurrences of squared
+ * deviations of each cyclic gap from that piece's ideal gap
  * (numDays / occurrences). Fixed-day pieces are constants, so they are
  * excluded from the gap term.
  */
 function analyse(days, ctx) {
   const counts = new Array(ctx.numDays).fill(0);
+  const loads = new Array(ctx.numDays).fill(0);
   const byRank = new Map();
   days.forEach((day, d) => {
     counts[d] = day.length;
     for (const p of day) {
+      loads[d] += ctx.durationByRank.get(p.rank) || 0;
       let list = byRank.get(p.rank);
       if (!list) {
         list = [];
@@ -65,9 +69,10 @@ function analyse(days, ctx) {
       list.push(d);
     }
   });
-  const mean = ctx.total / ctx.numDays;
+  const balanced = ctx.balanceBy === 'duration' ? loads : counts;
+  const mean = balanced.reduce((s, x) => s + x, 0) / ctx.numDays;
   let balance = 0;
-  for (const c of counts) balance += (c - mean) * (c - mean);
+  for (const x of balanced) balance += (x - mean) * (x - mean);
   let gap = 0;
   for (const rank of ctx.movable) {
     const ds = byRank.get(rank);
@@ -78,10 +83,10 @@ function analyse(days, ctx) {
       gap += (g - ideal) * (g - ideal);
     }
   }
-  return { counts, byRank, balance, gap };
+  return { counts, loads, byRank, balance, gap };
 }
 
-function buildContext(program, days, exclusionGroups, inclusionGroups) {
+function buildContext(program, days, exclusionGroups, inclusionGroups, opts = {}) {
   const numDays = program.num_days;
   const byRank = new Map(program.pieces.map((p) => [p.rank, p]));
   const fixed = new Set();
@@ -154,14 +159,15 @@ function buildContext(program, days, exclusionGroups, inclusionGroups) {
     units.push({ ranks: rs });
   });
 
-  return { numDays, total, byRank, fixed, counts, partners, groupOf, groups, pinnedGroups, movable, units, unitOf };
+  const durationByRank = new Map(program.pieces.map((p) => [p.rank, +p.duration_min || 0]));
+  return { numDays, total, byRank, fixed, counts, partners, groupOf, groups, pinnedGroups, movable, units, unitOf, durationByRank, balanceBy: opts.balanceBy === 'duration' ? 'duration' : 'pieces' };
 }
 
-/** Public scoring helper (bench/tests): { balance, gap, counts }. */
-export function analyseRoutine(days, program, exclusionGroups = [], inclusionGroups = []) {
-  const ctx = buildContext(program, days, exclusionGroups, inclusionGroups);
-  const { balance, gap, counts } = analyse(days, ctx);
-  return { balance, gap, counts };
+/** Public scoring helper (bench/tests): { balance, gap, counts, loads }. */
+export function analyseRoutine(days, program, exclusionGroups = [], inclusionGroups = [], opts = {}) {
+  const ctx = buildContext(program, days, exclusionGroups, inclusionGroups, opts);
+  const { balance, gap, counts, loads } = analyse(days, ctx);
+  return { balance, gap, counts, loads };
 }
 
 function canPlace(ranks, day, days, ignore, ctx) {
@@ -260,7 +266,7 @@ function revertMove(days, move, saved) {
  * lexicographically, so its output is the flattest state with the best
  * spacing found along the way.
  */
-function anneal(days, ctx, rng, { iterations, t0, t1, key, balanceCap }) {
+function anneal(days, ctx, rng, { iterations, t0, t1, key, balanceCap, relocateProb = 0 }) {
   let cur = analyse(days, ctx);
   let best = { balance: cur.balance, gap: cur.gap, days: copyDays(days) };
   let accepted = 0;
@@ -268,7 +274,7 @@ function anneal(days, ctx, rng, { iterations, t0, t1, key, balanceCap }) {
     const t = t0 * Math.pow(t1 / t0, i / Math.max(1, iterations - 1));
     const move =
       key === 'gap'
-        ? proposeSwap(days, cur, ctx, rng)
+        ? (rng() < relocateProb ? proposeRelocate(days, cur, ctx, rng) : proposeSwap(days, cur, ctx, rng))
         : rng() < 0.5
           ? proposeRelocate(days, cur, ctx, rng)
           : proposeSwap(days, cur, ctx, rng);
@@ -322,7 +328,9 @@ function polish(days, ctx, rng, { tries, balanceCap }) {
  * @param {object[][]} greedyDays — days[d] is the list of pieces on day d
  * @param {number[][]} exclusionGroups — lists of piece ranks
  * @param {number[][]} inclusionGroups — lists of piece ranks
- * @param {object} opts — { seed, iterations } (iterations per phase)
+ * @param {object} opts — { seed, iterations, balanceBy } (iterations per
+ *   phase; balanceBy 'pieces' flattens piece counts per day, 'duration'
+ *   flattens total minutes per day from duration_min)
  * @returns {{ days, stats }} — days sorted by rank within each day.
  */
 export function optimizeRoutine(program, greedyDays, exclusionGroups = [], inclusionGroups = [], opts = {}) {
@@ -330,12 +338,14 @@ export function optimizeRoutine(program, greedyDays, exclusionGroups = [], inclu
   const rng = mulberry32(opts.seed ?? 1);
   const days = copyDays(greedyDays);
   const numDays = program.num_days;
-  const ctx = buildContext(program, days, exclusionGroups, inclusionGroups);
+  const ctx = buildContext(program, days, exclusionGroups, inclusionGroups, opts);
   const before = analyse(days, ctx);
   const stats = {
+    balanceBy: ctx.balanceBy,
     balanceBefore: before.balance,
     gapBefore: before.gap,
     countsBefore: [...before.counts],
+    loadsBefore: [...before.loads],
   };
   const finish = (extra) => ({
     days: sortDays(days),
@@ -350,6 +360,7 @@ export function optimizeRoutine(program, greedyDays, exclusionGroups = [], inclu
       balanceAfter: before.balance,
       gapAfter: before.gap,
       countsAfter: [...before.counts],
+      loadsAfter: [...before.loads],
       iterations: 0,
       acceptedMoves: 0,
     });
@@ -363,6 +374,12 @@ export function optimizeRoutine(program, greedyDays, exclusionGroups = [], inclu
     t1: 0.02,
     key: 'gap',
     balanceCap: afterPhase1.balance,
+    // Relocates in phase 2 can help the gap too when they leave the
+    // balance at or below the phase-1 cap (a 0-minute piece, or a move
+    // between two days at the same distance from the mean). In pieces
+    // mode with a flat balance they are always cap-rejected, so the
+    // 30% share only costs a few wasted proposals.
+    relocateProb: 0.3,
   });
   polish(days, ctx, rng, { tries: 3000, balanceCap: afterPhase1.balance });
   const after = analyse(days, ctx);
@@ -372,6 +389,7 @@ export function optimizeRoutine(program, greedyDays, exclusionGroups = [], inclu
     balanceAfter: after.balance,
     gapAfter: after.gap,
     countsAfter: [...after.counts],
+    loadsAfter: [...after.loads],
     iterations: iterations * 2,
     acceptedMoves: p1.accepted + p2.accepted,
   });
