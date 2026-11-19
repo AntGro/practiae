@@ -354,6 +354,23 @@ try {
   check('mobile: switching to day 2 keeps a non-empty list',
     (await mob.locator('.day-list li').count()) > 0 &&
     (await mob.locator('.day-chip[data-day="1"].active').count()) === 1);
+  // Tap a day-list item to mark it done (practice-session tracking).
+  await mob.locator('.day-list li').first().click();
+  await mob.waitForTimeout(200);
+  check('mobile: tapping a day item marks it done',
+    (await mob.locator('.day-list li.done').count()) === 1 &&
+    (await mob.locator('.day-list li.done .day-tick').first().textContent())?.trim() === '✓');
+  // The mark survives switching days (renderRoutine rebuilds from the set).
+  await mob.locator('.day-chip[data-day="0"]').click();
+  await mob.waitForTimeout(200);
+  await mob.locator('.day-chip[data-day="1"]').click();
+  await mob.waitForTimeout(200);
+  check('mobile: done mark survives switching days',
+    (await mob.locator('.day-list li.done').count()) === 1);
+  await mob.locator('.day-list li.done').first().click();
+  await mob.waitForTimeout(200);
+  check('mobile: tapping a done item unmarks it',
+    (await mob.locator('.day-list li.done').count()) === 0);
   check('mobile: no page errors', mobErrors.length === 0, mobErrors.join(' | '));
 } finally {
   await browser.close();

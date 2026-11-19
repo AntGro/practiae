@@ -99,6 +99,8 @@ async function snapshot(page) {
       chartCols: qa('#tag-chart .tag-dist-col').length,
       chartTotals: qa('#tag-chart .tag-dist-col-total').map((el) => el.textContent.trim()),
       routineDay: parseInt(q('.day-chip.active')?.dataset.day ?? '-1', 10),
+      dayItems: qa('#routine-mobile .day-list li').map((li) => li.dataset.piece),
+      doneItems: qa('#routine-mobile .day-list li.done').map((li) => li.dataset.piece),
       routineView: document.body.classList.contains('mobile-view-routine'),
       dayListCount: qa('#routine-mobile .day-list li').length,
       saveStatus: q('#save-status')?.textContent || '',
@@ -176,7 +178,8 @@ const ACTIONS = [
         verify: (b, a) => !a.routine ? 'no pinned routine after Generate'
           : a.routineCols !== a.numDays ? `chart/table columns ${a.routineCols} != num_days ${a.numDays}`
           : a.chartCols !== (a.tags.length ? a.numDays : 0) ? `chart has ${a.chartCols} columns, expected ${a.tags.length ? a.numDays : 0} (tags: ${a.tags.length})`
-          : a.routineDay !== 0 && a.routineDay !== -1 ? `routineDay ${a.routineDay}, expected 0` : null };
+          : a.routineDay !== 0 && a.routineDay !== -1 ? `routineDay ${a.routineDay}, expected 0`
+          : a.doneItems.length ? 'done marks survived Generate' : null };
     } },
   { id: 'generate-double', when: (s) => s.pieces > 0,
     async run(page) {
@@ -494,11 +497,23 @@ const ACTIONS = [
             : n !== exp ? `day list has ${n} items, expected ${exp}` : null;
         } };
     } },
+  { id: 'routine-day-item', when: (s) => s.routine && MOBILE && s.routineView && s.dayItems.length > 0,
+    async run(page, snap) {
+      const i = rint(0, snap.dayItems.length - 1);
+      const label = snap.dayItems[i];
+      await page.locator('#routine-mobile .day-list li').nth(i).click();
+      const done = new Set(snap.doneItems);
+      done.has(label) ? done.delete(label) : done.add(label);
+      const expected = snap.dayItems.filter((l) => done.has(l));
+      return { predict: `day item "${label}" -> ${done.has(label) ? 'done' : 'not done'}`,
+        verify: (b, a) => JSON.stringify(a.doneItems) !== JSON.stringify(expected) ? `done items are ${JSON.stringify(a.doneItems)}, expected ${JSON.stringify(expected)}` : null };
+    } },
   { id: 'unpin', when: (s) => s.routine && piecesView(s),
     async run(page) {
       await page.locator('[data-action="unpin"]').click();
       return { predict: 'routine unpinned, placeholder text returns',
-        verify: (b, a) => a.routine ? 'routine still pinned' : null };
+        verify: (b, a) => a.routine ? 'routine still pinned'
+          : a.doneItems.length ? 'done marks survived Clear routine' : null };
     } },
   { id: 'copy-routine', when: (s) => s.routine && piecesView(s),
     async run(page) {

@@ -37,6 +37,9 @@ let hideZero = false;
 let searchQuery = '';
 let routineDay = 0; // mobile day-by-day routine view: which day is shown
 let mobileView = 'pieces'; // phone view toggle: 'pieces' (edit) or 'routine' (day view)
+let routineDone = new Set(); // mobile day view: items tapped done during a practice session (in-memory only; a new routine starts fresh)
+const doneKey = (progId, day, label) => `${progId}::${day}::${label}`;
+function clearDone(progId) { for (const k of [...routineDone]) if (k.startsWith(`${progId}::`)) routineDone.delete(k); }
 let chartMode = 'count'; // tag chart: 'count' (pieces) or 'duration' (minutes)
 let pinnedPiece = null; // routine cell highlight pinned by click (touch)
 let groupDraft = { kind: null, selected: new Set() };
@@ -196,7 +199,11 @@ function renderRoutine() {
       <button class="btn" data-action="routine-day" data-day="${day + 1}" ${day === r.columns.length - 1 ? 'disabled' : ''} aria-label="Next day">→</button>
     </div>
     <p class="muted">${items.length} piece${items.length === 1 ? '' : 's'} · ${esc(r.columns[day])}</p>
-    <ol class="day-list">${items.map((cell) => `<li>${esc(cell)}</li>`).join('')}</ol>`;
+    <ol class="day-list">${items.map((cell) => {
+      const done = routineDone.has(doneKey(p.id, day, cell));
+      return `<li class="${done ? 'done' : ''}" data-action="routine-day-item" data-day="${day}" data-piece="${esc(cell)}"><span class="day-tick" aria-hidden="true">${done ? '✓' : ''}</span><span class="day-label">${esc(cell)}</span></li>`;
+    }).join('')}</ol>
+    <p class="muted small">Tap an item to mark it done; tap again to undo.</p>`;
   const maxRows = r.data.length;
   // data-piece on each non-empty cell powers the hover/click highlighting
   // below (same attribute the Flask app used).
@@ -411,6 +418,7 @@ async function doGenerate(btn) {
     const data = Array.from({ length: maxRows }, (_, r) =>
       gen.days.map((day) => (day[r] ? pieceLabel(day[r]) : '')));
     routineDay = 0; // new routine opens on day 1 in the mobile day view
+    clearDone(p.id); // a new routine starts a fresh practice session
     mutate(() => {
       p.pinned_routine = { columns: p.day_names, indices: Array.from({ length: maxRows }, (_, i) => `${i + 1}.`), data, tag_distribution: gen.tagDistribution };
       p.is_routine_pinned = true;
@@ -487,13 +495,15 @@ document.addEventListener('click', async (e) => {
     case 'routine-day': { const d = +el.dataset.day;
       const r = prog()?.pinned_routine; if (!r || Number.isNaN(d)) break;
       routineDay = Math.max(0, Math.min(d, r.columns.length - 1)); renderRoutine(); break; }
+    case 'routine-day-item': { const key = doneKey(prog()?.id, +el.dataset.day, el.dataset.piece);
+      routineDone.has(key) ? routineDone.delete(key) : routineDone.add(key); renderRoutine(); break; }
     case 'switch-view': setMobileView(el.dataset.view); break;
     case 'routine-cell': { const piece = el.dataset.piece;
       pinnedPiece = pinnedPiece === piece ? null : piece; applyHighlight(pinnedPiece); break; }
     case 'edit-days': openDaysDialog(id); break;
     case 'edit-notes': openNotesDialog(id); break;
     case 'generate': await doGenerate(el); break;
-    case 'unpin': mutate(() => { p.pinned_routine = null; p.is_routine_pinned = false; }); break;
+    case 'unpin': clearDone(p.id); mutate(() => { p.pinned_routine = null; p.is_routine_pinned = false; }); break;
     case 'copy-routine': { if (!p.pinned_routine) break;
       const text = p.pinned_routine.columns.map((c, d) => `${c}:\n${p.pinned_routine.data.map((row) => row[d]).filter(Boolean).map((x) => `  - ${x}`).join('\n')}`).join('\n');
       await navigator.clipboard.writeText(text); el.textContent = 'Copied'; setTimeout(render, 1200); break; }

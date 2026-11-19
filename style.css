@@ -251,7 +251,9 @@ body.demo .drive-only { display: none; }
     border-radius: 999px; background: var(--surface); color: var(--text); }
   .day-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .day-list { list-style: none; padding: 0; margin: .5rem 0; }
-  .day-list li { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .85rem; margin-bottom: .5rem; }
+  .day-list li { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .85rem; margin-bottom: .5rem; cursor: pointer; }
+  .day-list li .day-tick { display: inline-block; width: 1.4em; color: var(--accent); font-weight: 700; }
+  .day-list li.done .day-label { color: var(--muted); text-decoration: line-through; }
   /* The Generate button lives in the sticky bar on mobile. */
   .program .row [data-action="generate"] { display: none; }
   /* Sticky bottom bar: Generate is always in reach, with the live count. */
