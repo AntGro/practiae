@@ -73,6 +73,8 @@ textarea { width: 100%; }
 .editable { cursor: text; }
 .empty { color: var(--muted); text-align: center; }
 .inline-edit { width: 100%; }
+.duration-edit { display: inline-flex; align-items: center; gap: 4px; }
+.duration-edit .inline-edit { width: 3.5em; }
 .filter-tags { display: flex; gap: .5rem; flex-wrap: wrap; }
 .filter-tag { font-size: .85rem; }
 /* Tag distribution chart — vertical stacked bars, ported from the Flask

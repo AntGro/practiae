@@ -100,6 +100,14 @@ try {
   await page.waitForSelector('.routine-table', { timeout: 10000 });
   const cols = await page.locator('.routine-table thead th').count();
   check('routine table has 8 day columns + row header', cols === 9, `got ${cols}`);
+  // Generate scrolls to the routine it just built.
+  await page.waitForFunction(() => {
+    const el = document.getElementById('generated-routine');
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return r.top >= 0 && r.top < window.innerHeight;
+  }, { timeout: 5000 });
+  check('Generate scrolls to the routine', true);
   check('tag chart rendered (vertical bars, one column per day)', (await page.locator('#tag-chart .tag-dist-col').count()) === 8);
   check('tag chart totals are pieces per day',
     /^\d+$/.test((await page.locator('#tag-chart .tag-dist-col-total').first().textContent())?.trim() || ''));
@@ -143,6 +151,17 @@ try {
     (await page.locator('.routine-table td.piece-highlight').count()) === 0);
   const saved = await page.textContent('#save-status');
   check('save status shows saved/demo', /Demo|Saved/i.test(saved || ''));
+
+  // Duration edit: two boxes (minutes + seconds), not one "m:ss" text entry.
+  const durCell = page.locator('#pieces-body tr').first().locator('td[data-field="duration_min"]');
+  await durCell.dblclick();
+  await page.waitForSelector('.edit-duration-min', { timeout: 5000 });
+  await page.locator('.edit-duration-min').fill('2');
+  await page.locator('.edit-duration-sec').fill('20');
+  await page.locator('.edit-duration-sec').press('Enter');
+  await page.waitForTimeout(300);
+  check('duration edit with min/sec boxes saves as 2:20',
+    (await page.locator('#pieces-body tr').first().locator('td[data-field="duration_min"]').textContent())?.trim() === '2:20');
 
   // Add a piece.
   await page.click('[data-action="add-piece"]');

@@ -4,7 +4,7 @@
 // Mutations go through mutate() -> persist (adapter.save) -> render().
 // One document-level click handler (data-action) — no per-element onclick.
 
-import { esc, uid, guard, download, clamp, formatDuration, parseDuration, freqStep, freqDays, snapPerc, freqLabel } from './utils.js';
+import { esc, uid, guard, download, clamp, formatDuration, freqStep, freqDays, snapPerc, freqLabel, durationFromMinSec } from './utils.js';
 import { resolveClientId, saveClientId, driveFolderName } from './config.js';
 import { blankPiece, blankProgram, normaliseDoc, seedFromDefault, currentProgram,
   renumber, groupsAsRanks, generationPieces, piecesPerDay } from './store.js';
@@ -292,26 +292,41 @@ function render() {
 function startTextEdit(cell, field, id) {
   const p = prog(); const piece = p.pieces.find((x) => x.id === id);
   if (!piece || cell.querySelector('input')) return;
-  // The duration cell displays m:ss, so the edit box must too — showing the
-  // raw float ("2.3333333333333335") would be the bug all over again, and
-  // typing "2:20" into a parseFloat box would silently save 2 minutes.
-  const old = field === 'duration_min' ? formatDuration(piece.duration_min) : String(piece[field] || '');
   const originalHTML = cell.innerHTML; // restore on cancel (no full render — see below)
-  cell.innerHTML = `<input class="inline-edit" value="${esc(old)}" ${field === 'duration_min' ? 'placeholder="m:ss"' : ''} aria-label="Edit ${field}">`;
-  const input = cell.querySelector('input');
-  input.focus(); input.select();
   let done = false;
-  const save = () => { if (done) return; done = true;
-    const v = input.value.trim();
-    mutate(() => {
-      if (field === 'duration_min') piece.duration_min = parseDuration(v);
-      else piece[field] = v;
-    });
-  };
   // Cancel runs on blur — a full render here would replace the element
   // under the cursor between mousedown and mouseup and swallow the click
   // that caused the blur, so just put the cell back as it was.
   const cancel = () => { if (done) return; done = true; cell.innerHTML = originalHTML; };
+  if (field === 'duration_min') {
+    // Two boxes (minutes + seconds), like Flask — a single "m:ss" text
+    // entry was easy to mistype and awkward on a phone.
+    const total = piece.duration_min || 0;
+    const oldMin = total ? Math.floor(total) : '';
+    const oldSec = total ? Math.round((total - Math.floor(total)) * 60) : '';
+    cell.innerHTML = `<span class="duration-edit"><input type="number" class="inline-edit edit-duration-min" min="0" step="1" placeholder="min" value="${oldMin}" aria-label="Minutes"><span aria-hidden="true">min</span><input type="number" class="inline-edit edit-duration-sec" min="0" step="1" placeholder="sec" value="${oldSec}" aria-label="Seconds"><span aria-hidden="true">sec</span></span>`;
+    const minInput = cell.querySelector('.edit-duration-min');
+    const secInput = cell.querySelector('.edit-duration-sec');
+    const save = () => { if (done) return; done = true;
+      mutate(() => { piece.duration_min = durationFromMinSec(parseInt(minInput.value, 10), parseInt(secInput.value, 10)); });
+    };
+    // Enter in either box saves; Esc cancels. Blur cancels only when
+    // focus leaves both boxes — tabbing min -> sec must not cancel.
+    [minInput, secInput].forEach((input) => {
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); e.stopPropagation(); });
+    });
+    cell.addEventListener('focusout', (e) => { if (!cell.contains(e.relatedTarget)) cancel(); });
+    minInput.focus(); minInput.select();
+    return;
+  }
+  const old = String(piece[field] || '');
+  cell.innerHTML = `<input class="inline-edit" value="${esc(old)}" aria-label="Edit ${field}">`;
+  const input = cell.querySelector('input');
+  input.focus(); input.select();
+  const save = () => { if (done) return; done = true;
+    const v = input.value.trim();
+    mutate(() => { piece[field] = v; });
+  };
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); e.stopPropagation(); });
   input.addEventListener('blur', cancel);
 }
@@ -360,6 +375,8 @@ async function doGenerate(btn) {
       p.pinned_routine = { columns: p.day_names, indices: Array.from({ length: maxRows }, (_, i) => `${i + 1}.`), data, tag_distribution: gen.tagDistribution };
       p.is_routine_pinned = true;
     });
+    // Take the user to the routine they just generated.
+    document.getElementById('generated-routine')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 

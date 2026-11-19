@@ -92,6 +92,11 @@ export function freqLabel(perc, numDays) {
   return `${d} day${d === 1 ? '' : 's'}`;
 }
 
+/** Minutes + seconds inputs -> duration in minutes (float). */
+export function durationFromMinSec(min, sec) {
+  return Math.max(0, min || 0) + Math.max(0, sec || 0) / 60;
+}
+
 export function download(filename, text, mime = 'application/json') {
   // Chrome falls back to the name "download" for blob-URL downloads whose
   // download attribute contains non-ASCII characters — the default

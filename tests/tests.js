@@ -6,7 +6,7 @@ import { generateRoutine, pieceLabel, parseDayPattern, computeTagDistribution } 
 import { optimizeRoutine, analyseRoutine, generateOptimizedRoutine } from '../js/optimize.js';
 import { monLikeProgram } from './mon-like-program.mjs';
 import { normaliseDoc, normaliseProgram, blankProgram, seedFromDefault, groupsAsRanks } from '../js/store.js';
-import { formatDuration, parseDuration, freqStep, freqDays, snapPerc, freqLabel } from '../js/utils.js';
+import { formatDuration, parseDuration, freqStep, freqDays, snapPerc, freqLabel, durationFromMinSec } from '../js/utils.js';
 import { readFileSync } from 'node:fs';
 
 const mkPiece = (over) => ({ id: over.id ?? `p${over.rank}`, rank: over.rank, title: over.title ?? `Piece ${over.rank}`,
@@ -123,6 +123,15 @@ check('frequency slider step is one day', () => {
   assert.equal(freqLabel(100, 8), '8 days');
   assert.equal(freqLabel(12.5, 8), '1 day');
   assert.equal(freqLabel(0, 8), '0 days');
+});
+
+// Duration edit: two boxes (minutes + seconds) combine to a float.
+check('durationFromMinSec combines min and sec', () => {
+  assert.equal(durationFromMinSec(2, 20), 2 + 20 / 60);
+  assert.equal(durationFromMinSec(0, 30), 0.5);
+  assert.equal(durationFromMinSec(2, NaN), 2); // blank seconds
+  assert.equal(durationFromMinSec(NaN, NaN), 0); // both blank
+  assert.equal(durationFromMinSec(-1, 90), 1.5); // negatives clamp, seconds overflow normalises on display
 });
 
 check('formatDuration renders m:ss', () => {

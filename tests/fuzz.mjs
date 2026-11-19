@@ -183,7 +183,12 @@ const ACTIONS = [
         s.dispatchEvent(new Event('input', { bubbles: true }));
       }, [id, v]);
       return { predict: `piece freq -> ${v}%`,
-        verify: (b, a) => { const pc = pieceOf(a, id); return pc?.perc !== v ? `freq is ${pc?.perc}, expected ${v}` : null; } };
+        verify: (b, a) => { const pc = pieceOf(a, id);
+          // The slider snaps to the day grid (step 100/num_days), so the
+          // stored value is the nearest step multiple, not the raw input.
+          const step = 100 / a.numDays;
+          const expected = Math.round(v / step) * step;
+          return Math.abs((pc?.perc ?? -1) - expected) > 1e-9 ? `freq is ${pc?.perc}, expected ${expected}` : null; } };
     } },
   { id: 'rename-title', when: (s) => s.visiblePieceIds.length > 0,
     async run(page, snap) {
@@ -225,7 +230,8 @@ const ACTIONS = [
       const expected = raw === 'abc' ? 0 : parseInt(raw, 10);
       const cell = page.locator(fieldSel(id, 'duration_min')).first();
       await editTap(cell);
-      await page.locator('.inline-edit').fill(raw);
+      await page.locator('.edit-duration-min').fill(raw);
+      await page.locator('.edit-duration-sec').fill('');
       await page.keyboard.press('Enter');
       return { predict: `duration "${raw}" -> ${expected} min`,
         verify: (b, a) => pieceOf(a, id)?.duration_min !== expected ? `duration is ${pieceOf(a, id)?.duration_min}, expected ${expected}` : null };
