@@ -8,7 +8,8 @@ import { esc, uid, guard, download, clamp, formatDuration, parseDuration } from 
 import { resolveClientId, saveClientId, driveFolderName } from './config.js';
 import { blankPiece, blankProgram, normaliseDoc, seedFromDefault, currentProgram,
   renumber, groupsAsRanks, generationPieces, piecesPerDay } from './store.js';
-import { generateRoutine, pieceLabel, tagColor, parseDayPattern } from './generate.js';
+import { pieceLabel, tagColor, parseDayPattern } from './generate.js';
+import { generateOptimizedRoutine } from './optimize.js';
 import { createLocalAdapter, DEMO_KEY } from './adapters/local.js';
 import { createDriveAdapter, getDriveToken, clearDriveToken } from './adapters/drive.js';
 import { tagChartHTML, tagChartLegendHTML } from './chart.js';
@@ -330,7 +331,7 @@ async function doGenerate(btn) {
   const p = prog(); if (!p) return;
   await guard(btn, async () => {
     const { exclusion, inclusion } = groupsAsRanks(p);
-    const gen = generateRoutine({ num_days: p.num_days, pieces: generationPieces(p) }, exclusion, inclusion);
+    const gen = generateOptimizedRoutine({ num_days: p.num_days, pieces: generationPieces(p) }, exclusion, inclusion);
     generated = gen;
     const maxRows = Math.max(0, ...gen.days.map((d) => d.length));
     const data = Array.from({ length: maxRows }, (_, r) =>

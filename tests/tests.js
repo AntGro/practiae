@@ -3,7 +3,7 @@
 // assert invariants that hold on every run, over several repetitions.
 import assert from 'node:assert/strict';
 import { generateRoutine, pieceLabel, parseDayPattern, computeTagDistribution } from '../js/generate.js';
-import { optimizeRoutine, analyseRoutine } from '../js/optimize.js';
+import { optimizeRoutine, analyseRoutine, generateOptimizedRoutine } from '../js/optimize.js';
 import { monLikeProgram } from './mon-like-program.mjs';
 import { normaliseDoc, seedFromDefault, groupsAsRanks } from '../js/store.js';
 import { formatDuration, parseDuration } from '../js/utils.js';
@@ -194,6 +194,22 @@ check('optimizer: small hand-built unbalanced routine gets flattened', () => {
   assert.deepEqual([...stats.countsAfter].sort((a, b) => a - b), [1, 1, 2, 2]);
   assert.ok(stats.gapAfter < 6, `gap ${stats.gapAfter} should beat 6`);
   assert.deepEqual(optCountOf(out), new Map([[0, 2], [1, 2], [2, 2]]));
+});
+
+check('optimizer: generateOptimizedRoutine is the wired Generate path', () => {
+  for (let run = 0; run < 3; run++) {
+    const { program, exclusionGroups, inclusionGroups } = monLikeProgram();
+    const { days, tagDistribution, stats } = generateOptimizedRoutine(program, exclusionGroups, inclusionGroups, { seed: 7 });
+    // Same shape as generateRoutine: 16 days, flat 16/day, tags recomputed.
+    assert.equal(days.length, 16);
+    assert.deepEqual(days.map((d) => d.length), new Array(16).fill(16));
+    assert.equal(stats.balanceAfter, 0);
+    days.forEach((day, d) => {
+      const expected = day.reduce((s, p) => s + (p.tags || []).length, 0);
+      const actual = tagDistribution.tags.reduce((s, t) => s + tagDistribution.by_count[t][d], 0);
+      assert.equal(actual, expected, `day ${d} tag occurrences`);
+    });
+  }
 });
 
 check('optimizer: single-day and all-fixed programs return unchanged', () => {

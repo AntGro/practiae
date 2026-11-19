@@ -21,6 +21,8 @@
 // itself still uses Math.random, so the same program can start from
 // different draws; the optimizer's output for a fixed input is stable.
 
+import { generateRoutine, computeTagDistribution } from './generate.js';
+
 /** Tiny seeded PRNG (mulberry32): deterministic runs for a given seed. */
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -352,7 +354,7 @@ export function optimizeRoutine(program, greedyDays, exclusionGroups = [], inclu
       acceptedMoves: 0,
     });
   }
-  const iterations = opts.iterations ?? Math.max(4000, 60 * ctx.total);
+  const iterations = Math.min(opts.iterations ?? Math.max(4000, 60 * ctx.total), 40000);
   const p1 = anneal(days, ctx, rng, { iterations, t0: 1.5, t1: 0.02, key: 'balance' });
   const afterPhase1 = analyse(days, ctx);
   const p2 = anneal(days, ctx, rng, {
@@ -373,4 +375,16 @@ export function optimizeRoutine(program, greedyDays, exclusionGroups = [], inclu
     iterations: iterations * 2,
     acceptedMoves: p1.accepted + p2.accepted,
   });
+}
+
+/**
+ * The wired-up generation path (used by the Generate button): greedy
+ * routine, then the optimizer, then a tag distribution recomputed from
+ * the optimized days. Returns the same { days, tagDistribution } shape
+ * as generateRoutine, plus the optimizer stats.
+ */
+export function generateOptimizedRoutine(program, exclusionGroups = [], inclusionGroups = [], opts = {}) {
+  const gen = generateRoutine(program, exclusionGroups, inclusionGroups);
+  const { days, stats } = optimizeRoutine(program, gen.days, exclusionGroups, inclusionGroups, opts);
+  return { days, tagDistribution: computeTagDistribution(days), stats };
 }
