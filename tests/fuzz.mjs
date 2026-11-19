@@ -239,12 +239,23 @@ const ACTIONS = [
   { id: 'edit-tags', when: (s) => s.visiblePieceIds.length > 0,
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
-      const tags = rnd() < 0.2 ? '' : [pick(WORDS), pick(WORDS)].join(', ');
-      const expected = tags.split(',').map((t) => t.trim()).filter(Boolean);
-      const cell = page.locator(btnSel(id, 'edit-tags')).first();
-      await editTap(cell);
-      await page.locator('.inline-edit').fill(tags);
-      await page.keyboard.press('Enter');
+      const before = [...(pieceOf(snap, id)?.tags || [])];
+      await editTap(page.locator(btnSel(id, 'edit-tags')).first());
+      await page.waitForSelector('#tags-dialog[open]', { timeout: 5000 });
+      let expected;
+      if (before.length > 0 && rnd() < 0.5) {
+        // Remove a random existing tag: tap its selected option.
+        const t = pick(before);
+        await page.locator(`#tags-options [data-tag-toggle="${t}"]`).click();
+        expected = before.filter((x) => x !== t);
+      } else {
+        // Create a brand-new tag via the search box + Create row.
+        const t = word();
+        await page.fill('#tags-search', t);
+        await page.locator('[data-tag-create]').click();
+        expected = before.some((x) => x.toLowerCase() === t.toLowerCase()) ? before : [...before, t];
+      }
+      await page.locator('#tags-dialog [data-action="close-dialog"]').click();
       return { predict: `tags -> [${expected.join(', ')}]`,
         verify: (b, a) => JSON.stringify(pieceOf(a, id)?.tags || []) !== JSON.stringify(expected) ? `tags are ${JSON.stringify(pieceOf(a, id)?.tags)}` : null };
     } },
