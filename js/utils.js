@@ -63,12 +63,12 @@ export function parseDuration(text) {
 /**
  * Frequency slider helpers — mirror the Flask app's routineForm.js.
  * Occurrences are k = round(perc * num_days / 100), so one day is worth
- * 100/num_days percent: the slider step must be that, not a fixed 5%,
- * or stops land between days (dead stops) and jumps are uneven.
+ * 100/num_days percent and stored values snap to that grid (snapPerc).
+ * The grid is enforced in JS, NOT as the slider's native step: Chromium
+ * cannot represent 100/num_days exactly as a native step, and at 3 days
+ * (step 100/3) it clamps the slider's effective max to 2 steps (66.67%),
+ * so the slider can never reach 100%. The native step is therefore 1%.
  */
-export function freqStep(numDays) {
-  return 100 / Math.max(1, numDays);
-}
 
 /** Frequency percent -> whole days, same rounding as the generator's k. */
 export function freqDays(perc, numDays) {
@@ -82,8 +82,10 @@ export function freqDays(perc, numDays) {
  */
 export function snapPerc(perc, numDays) {
   if (!perc) return 0;
-  const step = freqStep(numDays);
-  return Math.max(step, Math.round(perc / step) * step);
+  const step = 100 / Math.max(1, numDays);
+  // Clamp to 100: round(100/step)*step overshoots by float dust
+  // (100.00000000000001 at 3 days), and 100 must stay exactly 100.
+  return Math.min(100, Math.max(step, Math.round(perc / step) * step));
 }
 
 /** Day-count label, e.g. "1 day", "4 days", "0 days". */

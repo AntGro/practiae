@@ -195,6 +195,7 @@ body.demo .drive-only { display: none; }
    The card list and the table render from the same data and share the
    same data-actions, so one delegated handler serves both. */
 .pieces-cards, .routine-mobile, .mobile-bar { display: none; }
+.view-toggle { display: none; } /* phone-only: Pieces / Routine switch */
 #search-pieces { flex: 1 1 180px; min-width: 140px; }
 @media (max-width: 800px) {
   body { padding-bottom: 4.5rem; }
@@ -204,6 +205,17 @@ body.demo .drive-only { display: none; }
   /* 44px minimum touch targets. */
   .btn { min-height: 44px; }
   .btn.small { min-height: 44px; padding: .5rem .75rem; }
+  /* View toggle: Pieces (edit) vs Routine (day view). Sticky so it stays
+     in reach while scrolling; the two views swap via a body class. */
+  .view-toggle { display: flex; position: sticky; top: 0; z-index: 10; background: var(--bg); padding: .5rem 0; }
+  .view-toggle-btn { flex: 1; min-height: 44px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+  .view-toggle-btn:first-child { border-radius: 999px 0 0 999px; }
+  .view-toggle-btn:last-child { border-radius: 0 999px 999px 0; }
+  .view-toggle-btn + .view-toggle-btn { border-left: 0; }
+  .view-toggle-btn[aria-selected="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #routine-view { display: none; }
+  body.mobile-view-routine #routine-view { display: block; }
+  body.mobile-view-routine #pieces-view { display: none; }
   /* Programs: horizontal chip row instead of a tall list. */
   .programs ul { display: flex; gap: .5rem; overflow-x: auto; }
   .program-item { width: auto; white-space: nowrap; flex-shrink: 0; }

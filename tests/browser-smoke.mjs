@@ -62,6 +62,7 @@ try {
   check('program "Toutes les pièces" listed', (await page.textContent('#program-list'))?.includes('Toutes les pièces'));
   const rows = await page.locator('#pieces-body tr').count();
   check('68 piece rows', rows === 68, `got ${rows}`);
+  check('view toggle hidden on desktop', !(await page.locator('.view-toggle').isVisible()));
 
   // Edit: set first piece slider to 50, then reload and check persistence.
   const slider = page.locator('[data-piece-slider]').first();
@@ -71,22 +72,27 @@ try {
   await page.waitForSelector('#pieces-body tr');
   const firstPerc = await page.locator('.perc-val').first().textContent();
   check('slider edit persists across reload', firstPerc?.trim() === '4 days', `got ${firstPerc}`);
-  // Frequency slider step is one day (100/num_days), like Flask's
-  // updateSlider(); the label shows days, not percent.
+  // The native step is 1%: the day grid snaps in JS (a fractional native
+  // step like 100/3 makes Chromium clamp the slider's max to 66.67%).
   const firstStep = await page.locator('[data-piece-slider]').first().getAttribute('step');
-  check('slider step is 100/num_days (12.5 at 8 days)', firstStep === '12.5', `got ${firstStep}`);
+  check('slider step is 1 (grid snaps in JS)', firstStep === '1', `got ${firstStep}`);
   await page.locator('#num-days').fill('16');
   await page.locator('#num-days').blur();
   await page.waitForTimeout(200);
-  const step16 = await page.locator('[data-piece-slider]').first().getAttribute('step');
   const label16 = await page.locator('.perc-val').first().textContent();
-  check('changing num-days re-steps sliders (6.25 at 16 days)', step16 === '6.25', `got ${step16}`);
   check('changing num-days re-labels in days (50% of 16 = 8 days)', label16?.trim() === '8 days', `got ${label16}`);
+  // Regression: at 3 days the slider must still reach 100% (3 days), not
+  // stop at 66.67% the way the fractional native step made it.
+  await page.locator('#num-days').fill('3');
+  await page.locator('#num-days').blur();
+  await page.waitForTimeout(200);
+  await page.locator('[data-piece-slider]').first().fill('100');
+  await page.waitForTimeout(200);
+  check('slider reaches 100% at 3 days',
+    (await page.locator('.perc-val').first().textContent())?.trim() === '3 days');
   await page.locator('#num-days').fill('8');
   await page.locator('#num-days').blur();
   await page.waitForTimeout(200);
-  const step8 = await page.locator('[data-piece-slider]').first().getAttribute('step');
-  check('changing num-days back restores the step', step8 === '12.5', `got ${step8}`);
   const stored = await page.evaluate(() => localStorage.getItem('practiae-gdrive:demo:v1'));
   check('demo key used in localStorage', !!stored && stored.includes('Toutes les pièces'));
   const realKey = await page.evaluate(() => localStorage.getItem('practiae-gdrive:v1'));
@@ -280,6 +286,20 @@ try {
   const cardCount = await mob.locator('.piece-card').count();
   const mobRows = await mob.locator('#pieces-body tr').count();
   check('mobile: one card per piece', cardCount === mobRows, `got ${cardCount} cards, ${mobRows} rows`);
+  // View toggle (phone): Pieces edit vs Routine day view.
+  check('mobile: view toggle visible', await mob.locator('.view-toggle').isVisible());
+  check('mobile: Pieces view is the default (cards shown, routine hidden)',
+    (await mob.locator('.piece-card').first().isVisible()) && !(await mob.locator('#routine-mobile').isVisible()));
+  await mob.locator('[data-action="switch-view"][data-view="routine"]').click();
+  await mob.waitForTimeout(200);
+  check('mobile: Routine view hides the cards and shows the routine',
+    !(await mob.locator('.piece-card').first().isVisible()) && (await mob.locator('#routine-mobile').isVisible()));
+  check('mobile: Routine view with no routine yet shows the empty state',
+    (await mob.locator('#routine-mobile').textContent())?.includes('No routine generated yet'));
+  await mob.locator('[data-action="switch-view"][data-view="pieces"]').click();
+  await mob.waitForTimeout(200);
+  check('mobile: back to Pieces view shows the cards again',
+    await mob.locator('.piece-card').first().isVisible());
   check('mobile: no horizontal page overflow',
     (await mob.evaluate(() => document.body.scrollWidth)) <= 391,
     `scrollWidth ${await mob.evaluate(() => document.body.scrollWidth)}`);
@@ -322,6 +342,9 @@ try {
   // Generate from the sticky bar, then day-by-day routine view.
   await mob.click('.mobile-bar [data-action="generate"]');
   await mob.waitForSelector('.day-list li', { timeout: 10000 });
+  check('mobile: Generate auto-switches to the Routine view',
+    (await mob.evaluate(() => document.body.classList.contains('mobile-view-routine'))) &&
+    !(await mob.locator('.piece-card').first().isVisible()));
   const day1 = await mob.locator('.day-list li').count();
   check('mobile: day view lists one day of pieces', day1 > 0, `got ${day1}`);
   check('mobile: routine table hidden, day view shown',
