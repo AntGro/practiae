@@ -3,6 +3,8 @@
 // assert invariants that hold on every run, over several repetitions.
 import assert from 'node:assert/strict';
 import { generateRoutine, pieceLabel, parseDayPattern, computeTagDistribution } from '../js/generate.js';
+import { optimizeRoutine, analyseRoutine } from '../js/optimize.js';
+import { monLikeProgram } from './mon-like-program.mjs';
 import { normaliseDoc, seedFromDefault, groupsAsRanks } from '../js/store.js';
 import { formatDuration, parseDuration } from '../js/utils.js';
 import { readFileSync } from 'node:fs';
@@ -127,6 +129,81 @@ check('parseDuration reads m:ss and plain minutes', () => {
   assert.equal(parseDuration(' 2:20 '), 2 + 20 / 60);
   assert.equal(formatDuration(parseDuration('2:20')), '2:20');
   assert.equal(formatDuration(parseDuration('2.5')), '2:30');
+});
+
+// --- Routine optimizer (js/optimize.js) ---
+
+const optCountOf = (days) => {
+  const m = new Map();
+  for (const day of days) for (const p of day) m.set(p.rank, (m.get(p.rank) || 0) + 1);
+  return m;
+};
+const optDaysOf = (days, rank) => days.map((d, i) => (d.some((p) => p.rank === rank) ? i : -1)).filter((i) => i >= 0);
+
+check('optimizer: flattens Mon-like counts, keeps constraints, deterministic', () => {
+  for (let run = 0; run < 3; run++) {
+    const { program, exclusionGroups, inclusionGroups } = monLikeProgram();
+    const { days: greedy } = generateRoutine(program, exclusionGroups, inclusionGroups);
+    const before = analyseRoutine(greedy, program, exclusionGroups, inclusionGroups);
+    assert.ok(before.balance > 0, 'greedy input should be unbalanced here');
+    const { days, stats } = optimizeRoutine(program, greedy, exclusionGroups, inclusionGroups, { seed: 7 });
+    const again = optimizeRoutine(program, greedy, exclusionGroups, inclusionGroups, { seed: 7 });
+    assert.deepEqual(days, again.days, 'same input + seed must give the same routine');
+    // Per-piece occurrence counts preserved, never twice on a day.
+    assert.deepEqual(optCountOf(days), optCountOf(greedy));
+    for (const day of days) assert.equal(new Set(day.map((p) => p.rank)).size, day.length);
+    // Fixed-day pieces unmoved.
+    for (const p of program.pieces) {
+      if (p.day_pattern != null) assert.deepEqual(optDaysOf(days, p.rank), p.day_pattern);
+    }
+    // Exclusion pairs never share a day.
+    for (const [a, b] of exclusionGroups) {
+      for (const day of days) assert.ok(!(day.some((p) => p.rank === a) && day.some((p) => p.rank === b)));
+    }
+    // Balance flat (256 over 16 days = exactly 16/day) and gaps way down.
+    assert.equal(stats.balanceAfter, 0);
+    assert.deepEqual(stats.countsAfter, new Array(16).fill(16));
+    assert.ok(stats.gapAfter < stats.gapBefore, `gap ${stats.gapAfter} should beat greedy ${stats.gapBefore}`);
+    assert.ok(stats.gapAfter <= stats.gapAfterPhase1, 'phase 2 must not worsen gaps');
+  }
+});
+
+check('optimizer: inclusion groups stay together', () => {
+  const pieces = [
+    mkPiece({ rank: 0, perc: 50 }),
+    mkPiece({ rank: 1, perc: 50 }),
+    mkPiece({ rank: 2, perc: 25 }),
+    mkPiece({ rank: 3, perc: 25 }),
+  ];
+  for (let run = 0; run < 5; run++) {
+    const { days: greedy } = generateRoutine(mkProg(pieces), [], [[0, 1]]);
+    const { days } = optimizeRoutine(mkProg(pieces), greedy, [], [[0, 1]], { seed: 3 });
+    assert.deepEqual(optDaysOf(days, 0), optDaysOf(days, 1), 'inclusion members must share days');
+    assert.deepEqual(optCountOf(days), optCountOf(greedy));
+  }
+});
+
+check('optimizer: small hand-built unbalanced routine gets flattened', () => {
+  const [A, B, C] = [mkPiece({ rank: 0 }), mkPiece({ rank: 1 }), mkPiece({ rank: 2 })];
+  const prog = mkProg([A, B, C], 4);
+  const days = [[A, B, C], [A, B], [], [C]];
+  const before = analyseRoutine(days, prog);
+  assert.equal(before.balance, 5); // counts 3,2,0,1 vs mean 1.5
+  assert.equal(before.gap, 6);
+  const { days: out, stats } = optimizeRoutine(prog, days, [], [], { seed: 1 });
+  assert.deepEqual([...stats.countsAfter].sort((a, b) => a - b), [1, 1, 2, 2]);
+  assert.ok(stats.gapAfter < 6, `gap ${stats.gapAfter} should beat 6`);
+  assert.deepEqual(optCountOf(out), new Map([[0, 2], [1, 2], [2, 2]]));
+});
+
+check('optimizer: single-day and all-fixed programs return unchanged', () => {
+  const p1 = mkPiece({ rank: 0, perc: 100 });
+  const { days: d1 } = generateRoutine(mkProg([p1], 1));
+  assert.deepEqual(optimizeRoutine(mkProg([p1], 1), d1).days, d1);
+  const f1 = mkPiece({ rank: 0, perc: 100, day_pattern: [0, 2] });
+  const f2 = mkPiece({ rank: 1, perc: 100, day_pattern: [1, 3] });
+  const { days: d2 } = generateRoutine(mkProg([f1, f2], 4));
+  assert.deepEqual(optimizeRoutine(mkProg([f1, f2], 4), d2).days, d2);
 });
 
 console.log(`\n${passed} tests passed`);
