@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { generateRoutine, pieceLabel, parseDayPattern, computeTagDistribution } from '../js/generate.js';
 import { normaliseDoc, seedFromDefault, groupsAsRanks } from '../js/store.js';
+import { formatDuration } from '../js/utils.js';
 import { readFileSync } from 'node:fs';
 
 const mkPiece = (over) => ({ id: over.id ?? `p${over.rank}`, rank: over.rank, title: over.title ?? `Piece ${over.rank}`,
@@ -97,6 +98,19 @@ check('store: bundled default routine seeds one program', () => {
   assert.equal(doc.programs[0].pieces.length, 68);
   assert.equal(doc.programs[0].num_days, 8);
   assert.ok(doc.programs[0].pieces.every((p) => p.id && p.rank >= 0));
+});
+
+// Durations display as m:ss, as in the Flask routine table — never a raw
+// float ("2.3333333333333335"). Seconds truncate, as the Flask template does.
+check('formatDuration renders m:ss', () => {
+  assert.equal(formatDuration(2), '2:00');
+  assert.equal(formatDuration(2.3333333333333335), '2:20');
+  assert.equal(formatDuration(0.5), '0:30');
+  assert.equal(formatDuration(1.999), '1:59');
+  assert.equal(formatDuration(65), '65:00');
+  assert.equal(formatDuration(0), '');
+  assert.equal(formatDuration(null), '');
+  assert.equal(formatDuration(undefined), '');
 });
 
 console.log(`\n${passed} tests passed`);

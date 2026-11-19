@@ -4,7 +4,7 @@
 // Mutations go through mutate() -> persist (adapter.save) -> render().
 // One document-level click handler (data-action) — no per-element onclick.
 
-import { esc, uid, guard, download, clamp } from './utils.js';
+import { esc, uid, guard, download, clamp, formatDuration } from './utils.js';
 import { resolveClientId, saveClientId, driveFolderName } from './config.js';
 import { blankPiece, blankProgram, normaliseDoc, seedFromDefault, currentProgram,
   renumber, groupsAsRanks, generationPieces, piecesPerDay } from './store.js';
@@ -85,7 +85,7 @@ function pieceRow(p) {
     <td><span class="perc-wrap"><input type="range" min="0" max="100" step="5" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency percent">
         <span class="perc-val">${p.perc}%</span></span></td>
     <td class="editable" data-action="edit-tags" data-id="${esc(p.id)}" title="Double-click to edit tags">${tags || '<span class="muted">—</span>'}</td>
-    <td class="editable" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}" title="Double-click to edit">${p.duration_min || ''}</td>
+    <td class="editable" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}" title="Double-click to edit">${formatDuration(p.duration_min)}</td>
     <td><button class="btn small" data-action="edit-days" data-id="${esc(p.id)}">${esc(daysLabel)}</button></td>
     <td><button class="btn small" data-action="edit-notes" data-id="${esc(p.id)}">${p.notes ? 'Notes…' : 'Add note'}</button></td>
     <td><button class="btn small danger" data-action="delete-piece" data-id="${esc(p.id)}" aria-label="Delete piece">Delete</button></td>
@@ -110,7 +110,7 @@ function pieceCard(p) {
     <label class="card-freq"><span class="perc-wrap"><input type="range" min="0" max="100" step="5" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency percent">
       <span class="perc-val">${p.perc}%</span></span><span class="card-freq-hint">of days</span></label>
     ${tags ? `<div class="card-tags editable" data-action="edit-tags" data-id="${esc(p.id)}">${tags}</div>` : ''}
-    <div class="card-meta"><button class="btn small" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}">${p.duration_min ? `${p.duration_min} min` : 'Add duration'}</button></div>
+    <div class="card-meta"><button class="btn small" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}">${formatDuration(p.duration_min) || 'Add duration'}</button></div>
     <div class="card-actions">
       <button class="btn" data-action="edit-days" data-id="${esc(p.id)}">${esc(daysLabel)}</button>
       <button class="btn" data-action="edit-notes" data-id="${esc(p.id)}">${p.notes ? 'Notes…' : 'Add note'}</button>

@@ -34,6 +34,18 @@ export function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
+/**
+ * Format a duration in minutes as m:ss (2.333… → "2:20"), as the Flask
+ * app's routine table does — a raw float reads as a bug ("2.3333333333333335").
+ * Seconds are truncated, as in the Flask template (total seconds | int).
+ * Returns '' for a missing or zero duration, so the cell stays blank.
+ */
+export function formatDuration(min) {
+  if (!min) return '';
+  const total = Math.max(0, Math.floor(min * 60));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
 export function download(filename, text, mime = 'application/json') {
   // Chrome falls back to the name "download" for blob-URL downloads whose
   // download attribute contains non-ASCII characters — the default
