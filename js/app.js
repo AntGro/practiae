@@ -4,7 +4,7 @@
 // Mutations go through mutate() -> persist (adapter.save) -> render().
 // One document-level click handler (data-action) — no per-element onclick.
 
-import { esc, uid, guard, download, clamp, formatDuration, freqStep, freqDays, snapPerc, freqLabel, durationFromMinSec } from './utils.js';
+import { esc, uid, guard, download, clamp, formatDuration, freqDays, snapPerc, freqLabel, durationFromMinSec } from './utils.js';
 import { resolveClientId, saveClientId, driveFolderName } from './config.js';
 import { blankPiece, blankProgram, normaliseDoc, seedFromDefault, currentProgram,
   renumber, groupsAsRanks, generationPieces, piecesPerDay } from './store.js';
@@ -36,6 +36,7 @@ let filterTags = [];
 let hideZero = false;
 let searchQuery = '';
 let routineDay = 0; // mobile day-by-day routine view: which day is shown
+let mobileView = 'pieces'; // phone view toggle: 'pieces' (edit) or 'routine' (day view)
 let chartMode = 'count'; // tag chart: 'count' (pieces) or 'duration' (minutes)
 let pinnedPiece = null; // routine cell highlight pinned by click (touch)
 let groupDraft = { kind: null, selected: new Set() };
@@ -83,7 +84,7 @@ function pieceRow(p, numDays) {
     <td class="rank">${p.rank + 1}</td>
     <td class="editable" data-action="edit-text" data-field="title" data-id="${esc(p.id)}" title="Double-click to edit">${esc(p.title) || '<span class="muted">Untitled</span>'}</td>
     <td class="editable" data-action="edit-text" data-field="composer" data-id="${esc(p.id)}" title="Double-click to edit">${esc(p.composer)}</td>
-    <td><span class="perc-wrap"><input type="range" min="0" max="100" step="${freqStep(numDays)}" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
+    <td><span class="perc-wrap"><input type="range" min="0" max="100" step="1" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
         <span class="perc-val">${freqLabel(p.perc, numDays)}</span></span></td>
     <td class="editable" data-action="edit-tags" data-id="${esc(p.id)}" title="Double-click to edit tags">${tags || '<span class="muted">—</span>'}</td>
     <td class="editable" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}" title="Double-click to edit">${formatDuration(p.duration_min)}</td>
@@ -108,7 +109,7 @@ function pieceCard(p, numDays) {
       </div>
       <span class="card-rank">#${p.rank + 1}</span>
     </div>
-    <label class="card-freq"><span class="perc-wrap"><input type="range" min="0" max="100" step="${freqStep(numDays)}" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
+    <label class="card-freq"><span class="perc-wrap"><input type="range" min="0" max="100" step="1" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
       <span class="perc-val">${freqDays(p.perc, numDays)} / ${numDays}</span></span><span class="card-freq-hint">days</span></label>
     ${`<div class="card-tags editable" data-action="edit-tags" data-id="${esc(p.id)}">${tags || '<span class="muted">Add tags</span>'}</div>`}
     <div class="card-meta"><button class="btn small" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}">${formatDuration(p.duration_min) || 'Add duration'}</button></div>
@@ -152,17 +153,25 @@ function renderPieces() {
 // handler), so the sliders would otherwise keep the old grid.
 function syncFreqSliders() {
   const p = prog(); if (!p) return;
-  const step = freqStep(p.num_days);
   $$('[data-piece-slider]').forEach((s) => {
     const piece = p.pieces.find((x) => x.id === s.dataset.pieceSlider);
     if (!piece) return;
-    s.step = String(step);
+    s.step = '1'; // native step is 1% — the grid snaps in JS (see utils.js)
     s.value = String(piece.perc);
     const val = s.closest('.perc-wrap')?.querySelector('.perc-val');
     if (val) val.textContent = s.closest('.piece-card')
       ? `${freqDays(piece.perc, p.num_days)} / ${p.num_days}`
       : freqLabel(piece.perc, p.num_days);
   });
+}
+
+// Phone view toggle (Pieces edit vs Routine day view). CSS does the
+// showing/hiding inside the ≤800px media query; on desktop the toggle is
+// hidden and both views are always shown, so the class is inert there.
+function setMobileView(view) {
+  mobileView = view;
+  document.body.classList.toggle('mobile-view-routine', view === 'routine');
+  $$('.view-toggle-btn').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === view)));
 }
 
 function renderRoutine() {
@@ -408,6 +417,8 @@ async function doGenerate(btn) {
     });
     // Take the user to the routine they just generated.
     document.getElementById('generated-routine')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // On a phone, switch to the routine view they just generated.
+    if (window.matchMedia('(max-width: 800px)').matches) setMobileView('routine');
   });
 }
 
@@ -476,6 +487,7 @@ document.addEventListener('click', async (e) => {
     case 'routine-day': { const d = +el.dataset.day;
       const r = prog()?.pinned_routine; if (!r || Number.isNaN(d)) break;
       routineDay = Math.max(0, Math.min(d, r.columns.length - 1)); renderRoutine(); break; }
+    case 'switch-view': setMobileView(el.dataset.view); break;
     case 'routine-cell': { const piece = el.dataset.piece;
       pinnedPiece = pinnedPiece === piece ? null : piece; applyHighlight(pinnedPiece); break; }
     case 'edit-days': openDaysDialog(id); break;
@@ -508,12 +520,14 @@ document.addEventListener('input', (e) => {
   if (slider) {
     const p = prog(); const piece = p.pieces.find((x) => x.id === slider.dataset.pieceSlider);
     if (!piece) return;
-    piece.perc = +slider.value;
+    // The native step is 1% (see utils.js): the day grid is enforced
+    // here, in JS, and both sliders are set to the snapped value.
+    piece.perc = snapPerc(+slider.value, p.num_days);
     // Both copies of the slider (table row + mobile card) show the same
     // value, so update every visible one for this piece. The row label
     // shows "N days"; the card shows "N / M days".
     $$(`[data-piece-slider="${slider.dataset.pieceSlider}"]`).forEach((s) => {
-      s.value = slider.value;
+      s.value = String(piece.perc);
       const val = s.closest('.perc-wrap')?.querySelector('.perc-val');
       if (val) val.textContent = s.closest('.piece-card')
         ? `${freqDays(piece.perc, p.num_days)} / ${p.num_days}`

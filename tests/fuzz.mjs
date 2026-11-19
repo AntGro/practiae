@@ -16,6 +16,7 @@
 // started by this script (node serve.mjs on :8000) and stopped at the end.
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
+import { snapPerc } from '../js/utils.js';
 
 const DEMO_KEY = 'practiae-gdrive:demo:v1';
 const LOCAL_KEY = 'practiae-gdrive:v1';
@@ -98,6 +99,7 @@ async function snapshot(page) {
       chartCols: qa('#tag-chart .tag-dist-col').length,
       chartTotals: qa('#tag-chart .tag-dist-col-total').map((el) => el.textContent.trim()),
       routineDay: parseInt(q('.day-chip.active')?.dataset.day ?? '-1', 10),
+      routineView: document.body.classList.contains('mobile-view-routine'),
       dayListCount: qa('#routine-mobile .day-list li').length,
       saveStatus: q('#save-status')?.textContent || '',
       modeBadge: q('#mode-badge')?.textContent || '',
@@ -152,7 +154,20 @@ async function settle(page) {
 // --- actions ---
 // Each: { id, when(snap) => bool, run(page, snap) => { predict, verify(before, after) } }
 // verify returns null on success or a failure string.
+// On a phone, the Pieces / Routine toggle hides one view at a time, so an
+// action that clicks inside #pieces-view only runs in the Pieces view
+// (and vice versa for #routine-view). Desktop shows both, so the gates
+// are no-ops there.
+const piecesView = (s) => !MOBILE || !s.routineView;
+const routineView = (s) => !MOBILE || s.routineView;
 const ACTIONS = [
+  { id: 'switch-view', when: () => MOBILE,
+    async run(page, snap) {
+      const toRoutine = !snap.routineView;
+      await page.locator(`[data-action="switch-view"][data-view="${toRoutine ? 'routine' : 'pieces'}"]`).click();
+      return { predict: `view -> ${toRoutine ? 'routine' : 'pieces'}`,
+        verify: (b, a) => a.routineView !== toRoutine ? `routineView is ${a.routineView}, expected ${toRoutine}` : null };
+    } },
   { id: 'generate', when: (s) => s.pieces > 0,
     async run(page) {
       await genBtn(page).click();
@@ -184,13 +199,12 @@ const ACTIONS = [
       }, [id, v]);
       return { predict: `piece freq -> ${v}%`,
         verify: (b, a) => { const pc = pieceOf(a, id);
-          // The slider snaps to the day grid (step 100/num_days), so the
-          // stored value is the nearest step multiple, not the raw input.
-          const step = 100 / a.numDays;
-          const expected = Math.round(v / step) * step;
+          // The grid snaps in JS (snapPerc) — the native step is 1%, so the
+          // stored value is the snapped value, not the raw input.
+          const expected = snapPerc(v, a.numDays);
           return Math.abs((pc?.perc ?? -1) - expected) > 1e-9 ? `freq is ${pc?.perc}, expected ${expected}` : null; } };
     } },
-  { id: 'rename-title', when: (s) => s.visiblePieceIds.length > 0,
+  { id: 'rename-title', when: (s) => s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       const name = 'Fuzz ' + word();
@@ -201,7 +215,7 @@ const ACTIONS = [
       return { predict: `title -> "${name}"`,
         verify: (b, a) => pieceOf(a, id)?.title !== name ? `title is "${pieceOf(a, id)?.title}", expected "${name}"` : null };
     } },
-  { id: 'rename-title-cancel', when: (s) => s.visiblePieceIds.length > 0,
+  { id: 'rename-title-cancel', when: (s) => s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       const before = pieceOf(snap, id)?.title;
@@ -212,7 +226,7 @@ const ACTIONS = [
       return { predict: 'Esc cancels the edit, title unchanged',
         verify: (b, a) => pieceOf(a, id)?.title !== before ? `title changed to "${pieceOf(a, id)?.title}" after Esc` : null };
     } },
-  { id: 'rename-composer', when: (s) => s.visiblePieceIds.length > 0,
+  { id: 'rename-composer', when: (s) => s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       const name = 'Composer ' + word();
@@ -223,7 +237,7 @@ const ACTIONS = [
       return { predict: `composer -> "${name}"`,
         verify: (b, a) => pieceOf(a, id)?.composer !== name ? `composer is "${pieceOf(a, id)?.composer}"` : null };
     } },
-  { id: 'edit-duration', when: (s) => s.visiblePieceIds.length > 0,
+  { id: 'edit-duration', when: (s) => s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       const raw = rnd() < 0.25 ? 'abc' : String(rint(1, 30)); // garbage -> 0
@@ -236,7 +250,7 @@ const ACTIONS = [
       return { predict: `duration "${raw}" -> ${expected} min`,
         verify: (b, a) => pieceOf(a, id)?.duration_min !== expected ? `duration is ${pieceOf(a, id)?.duration_min}, expected ${expected}` : null };
     } },
-  { id: 'edit-tags', when: (s) => s.visiblePieceIds.length > 0,
+  { id: 'edit-tags', when: (s) => s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       const before = [...(pieceOf(snap, id)?.tags || [])];
@@ -259,14 +273,14 @@ const ACTIONS = [
       return { predict: `tags -> [${expected.join(', ')}]`,
         verify: (b, a) => JSON.stringify(pieceOf(a, id)?.tags || []) !== JSON.stringify(expected) ? `tags are ${JSON.stringify(pieceOf(a, id)?.tags)}` : null };
     } },
-  { id: 'add-piece', when: () => true,
+  { id: 'add-piece', when: (s) => piecesView(s),
     async run(page) {
       await page.locator('[data-action="add-piece"]').click();
       return { predict: 'one more piece, titled "New piece"',
         verify: (b, a) => a.pieces !== b.pieces + 1 ? `pieces ${a.pieces}, expected ${b.pieces + 1}`
           : progOf(a).pieces.at(-1)?.title !== 'New piece' ? `new piece title is "${progOf(a).pieces.at(-1)?.title}"` : null };
     } },
-  { id: 'delete-piece', when: (s) => s.pieces > 1 && s.visiblePieceIds.length > 0,
+  { id: 'delete-piece', when: (s) => s.pieces > 1 && s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       const groupsBefore = snap.excl + snap.incl;
@@ -322,7 +336,7 @@ const ACTIONS = [
         verify: (b, a) => a.programs !== b.programs - 1 ? `programs ${a.programs}, expected ${b.programs - 1}`
           : a.currentId === b.currentId ? 'current program id unchanged after delete' : null };
     } },
-  { id: 'num-days', when: () => true,
+  { id: 'num-days', when: (s) => piecesView(s),
     async run(page, snap) {
       const raw = pick([1, 3, 8, 14, 31, 0, 99]);
       const expected = Math.max(1, Math.min(31, raw));
@@ -335,7 +349,7 @@ const ACTIONS = [
         verify: (b, a) => a.numDays !== expected ? `num_days is ${a.numDays}, expected ${expected}`
           : a.dayNames.length !== expected ? `day_names has ${a.dayNames.length} entries` : null };
     } },
-  { id: 'day-names', when: () => true,
+  { id: 'day-names', when: (s) => piecesView(s),
     async run(page, snap) {
       const names = Array.from({ length: snap.numDays }, (_, i) => `D${i + 1}-${word()}`);
       await page.locator('#day-names').fill(names.join(', '));
@@ -343,7 +357,7 @@ const ACTIONS = [
       return { predict: `day names -> ${names[0]}, … (${names.length})`,
         verify: (b, a) => JSON.stringify(a.dayNames) !== JSON.stringify(names) ? `day names are ${JSON.stringify(a.dayNames)}` : null };
     } },
-  { id: 'search', when: (s) => s.pieces > 0,
+  { id: 'search', when: (s) => s.pieces > 0 && piecesView(s),
     async run(page, snap) {
       const pc = pick(progOf(snap).pieces);
       const q = rnd() < 0.3 ? 'zzz-no-such-piece' : pc.title.slice(0, 4).toLowerCase();
@@ -352,14 +366,14 @@ const ACTIONS = [
       return { predict: `search "${q}" -> ${expected} visible rows`,
         verify: (b, a) => a.visibleRows !== expected ? `visible rows ${a.visibleRows}, expected ${expected}` : null };
     } },
-  { id: 'clear-search', when: (s) => s.search !== '',
+  { id: 'clear-search', when: (s) => s.search !== '' && piecesView(s),
     async run(page, snap) {
       await page.locator('#search-pieces').fill('');
       const expected = visibleCount(progOf(snap).pieces, { search: '', hideZero: snap.hideZero, filterTags: snap.filterTags });
       return { predict: `search cleared -> ${expected} visible rows (other filters still apply)`,
         verify: (b, a) => a.visibleRows !== expected ? `visible ${a.visibleRows}, expected ${expected}` : null };
     } },
-  { id: 'hide-zero', when: () => true,
+  { id: 'hide-zero', when: (s) => piecesView(s),
     async run(page, snap) {
       const want = !snap.hideZero;
       await page.locator('#hide-zero').setChecked(want);
@@ -367,7 +381,7 @@ const ACTIONS = [
       return { predict: `hide-zero ${want ? 'on' : 'off'} -> ${expected} visible rows`,
         verify: (b, a) => a.visibleRows !== expected ? `visible ${a.visibleRows}, expected ${expected}` : null };
     } },
-  { id: 'filter-tag', when: (s) => s.tags.length > 0,
+  { id: 'filter-tag', when: (s) => s.tags.length > 0 && piecesView(s),
     async run(page, snap) {
       const tag = pick(snap.tags);
       const was = snap.filterTags.includes(tag);
@@ -377,7 +391,7 @@ const ACTIONS = [
       return { predict: `tag filter ${was ? 'removes' : 'adds'} "${tag}" -> ${expected} visible rows`,
         verify: (b, a) => a.visibleRows !== expected ? `visible ${a.visibleRows}, expected ${expected}` : null };
     } },
-  { id: 'days-dialog', when: (s) => s.visiblePieceIds.length > 0,
+  { id: 'days-dialog', when: (s) => s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       await page.locator(btnSel(id, 'edit-days')).first().click();
@@ -394,7 +408,7 @@ const ACTIONS = [
           return JSON.stringify(got) !== JSON.stringify(exp) ? `custom_days is ${JSON.stringify(got)}, expected ${JSON.stringify(exp)}` : null;
         } };
     } },
-  { id: 'notes-dialog', when: (s) => s.visiblePieceIds.length > 0,
+  { id: 'notes-dialog', when: (s) => s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       const text = 'Note ' + word();
@@ -405,7 +419,7 @@ const ACTIONS = [
       return { predict: `notes -> "${text}"`,
         verify: (b, a) => pieceOf(a, id)?.notes !== text ? `notes are "${pieceOf(a, id)?.notes}"` : null };
     } },
-  { id: 'group-save', when: (s) => s.pieces >= 2,
+  { id: 'group-save', when: (s) => s.pieces >= 2 && piecesView(s),
     async run(page, snap) {
       const kind = pick(['exclusion_groups', 'inclusion_groups']);
       const ids = [...snap.pieceIds].sort(() => rnd() - 0.5).slice(0, rint(2, 3));
@@ -421,7 +435,7 @@ const ACTIONS = [
           return null;
         } };
     } },
-  { id: 'group-too-few', when: (s) => s.pieces >= 1,
+  { id: 'group-too-few', when: (s) => s.pieces >= 1 && piecesView(s),
     async run(page, snap) {
       const kind = pick(['exclusion_groups', 'inclusion_groups']);
       const id = pick(snap.pieceIds); // the draft lists every piece, filtered or not
@@ -435,14 +449,14 @@ const ACTIONS = [
         verify: (b, a) => progOf(a)[kind].length !== progOf(b)[kind].length ? 'a group was added despite < 2 pieces'
           : !alertShown ? 'no alert was shown for a 1-piece group' : null };
     } },
-  { id: 'delete-group', when: (s) => s.excl + s.incl > 0,
+  { id: 'delete-group', when: (s) => s.excl + s.incl > 0 && piecesView(s),
     async run(page, snap) {
       const kind = snap.excl > 0 ? 'exclusion_groups' : 'inclusion_groups';
       await page.locator(`[data-action="delete-group"][data-kind="${kind}"]`).first().click();
       return { predict: `${kind} loses one group`,
         verify: (b, a) => progOf(a)[kind].length !== progOf(b)[kind].length - 1 ? `${kind} has ${progOf(a)[kind].length} groups` : null };
     } },
-  { id: 'chart-toggle', when: (s) => s.routine && s.tags.length > 0,
+  { id: 'chart-toggle', when: (s) => s.routine && s.tags.length > 0 && routineView(s),
     async run(page, snap) {
       const wantDuration = snap.chartTotals[0] ? !/min$/.test(snap.chartTotals[0]) : true;
       await page.locator('#tag-dist-mode').setChecked(wantDuration);
@@ -468,10 +482,10 @@ const ACTIONS = [
           return n !== expected ? `${n} highlighted cells, expected ${expected}` : null;
         } };
     } },
-  { id: 'routine-day-next', when: (s) => s.routine && MOBILE,
+  { id: 'routine-day-next', when: (s) => s.routine && MOBILE && s.routineView,
     async run(page, snap) {
       const next = Math.min(snap.routineDay + 1, snap.numDays - 1);
-      await page.locator('.day-chip.active').evaluate((el) => el.parentElement.children[next]?.click?.());
+      await page.locator('.day-chip.active').evaluate((el, next) => el.parentElement.children[next]?.click?.(), next);
       return { predict: `day view -> day ${next + 1}`,
         verify: async (b, a) => {
           const n = await page.evaluate(() => document.querySelectorAll('#routine-mobile .day-list li').length);
@@ -480,13 +494,13 @@ const ACTIONS = [
             : n !== exp ? `day list has ${n} items, expected ${exp}` : null;
         } };
     } },
-  { id: 'unpin', when: (s) => s.routine,
+  { id: 'unpin', when: (s) => s.routine && piecesView(s),
     async run(page) {
       await page.locator('[data-action="unpin"]').click();
       return { predict: 'routine unpinned, placeholder text returns',
         verify: (b, a) => a.routine ? 'routine still pinned' : null };
     } },
-  { id: 'copy-routine', when: (s) => s.routine,
+  { id: 'copy-routine', when: (s) => s.routine && piecesView(s),
     async run(page) {
       await page.locator('[data-action="copy-routine"]').click();
       // The label is set after the async clipboard write resolves.
@@ -497,7 +511,7 @@ const ACTIONS = [
       return { predict: 'button reads "Copied" right after clicking',
         verify: () => text !== 'Copied' ? `button reads "${text}"` : null };
     } },
-  { id: 'export-json', when: () => true,
+  { id: 'export-json', when: (s) => piecesView(s),
     async run(page, snap) {
       const expected = safeFilename(snap.currentName);
       const dl = page.waitForEvent('download', { timeout: 5000 });
@@ -510,7 +524,7 @@ const ACTIONS = [
   // typing in #day-names then clicking a button used to lose the click,
   // because the blur fired `change` -> full render -> the button under
   // the cursor was replaced between mousedown and mouseup.
-  { id: 'day-names-then-generate', when: (s) => s.pieces > 0,
+  { id: 'day-names-then-generate', when: (s) => s.pieces > 0 && piecesView(s),
     async run(page, snap) {
       const names = Array.from({ length: snap.numDays }, (_, i) => `D${i + 1}-${word()}`);
       await page.locator('#day-names').fill(names.join(', '));
