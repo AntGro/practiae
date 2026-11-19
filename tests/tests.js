@@ -6,7 +6,7 @@ import { generateRoutine, pieceLabel, parseDayPattern, computeTagDistribution } 
 import { optimizeRoutine, analyseRoutine, generateOptimizedRoutine } from '../js/optimize.js';
 import { monLikeProgram } from './mon-like-program.mjs';
 import { normaliseDoc, normaliseProgram, blankProgram, seedFromDefault, groupsAsRanks } from '../js/store.js';
-import { formatDuration, parseDuration } from '../js/utils.js';
+import { formatDuration, parseDuration, freqStep, freqDays, snapPerc, freqLabel } from '../js/utils.js';
 import { readFileSync } from 'node:fs';
 
 const mkPiece = (over) => ({ id: over.id ?? `p${over.rank}`, rank: over.rank, title: over.title ?? `Piece ${over.rank}`,
@@ -104,6 +104,27 @@ check('store: bundled default routine seeds one program', () => {
 
 // Durations display as m:ss, as in the Flask routine table — never a raw
 // float ("2.3333333333333335"). Seconds truncate, as the Flask template does.
+// Frequency slider: one step is one day (100/num_days), like Flask's
+// updateSlider(); labels show days, not percent.
+check('frequency slider step is one day', () => {
+  assert.equal(freqStep(8), 12.5);
+  assert.equal(freqStep(16), 6.25);
+  assert.equal(freqStep(1), 100);
+  assert.equal(freqDays(100, 8), 8);
+  assert.equal(freqDays(50, 8), 4);
+  assert.equal(freqDays(25, 8), 2);
+  assert.equal(freqDays(30, 8), 2); // off-grid perc rounds like the generator's k
+  assert.equal(freqDays(0, 8), 0);
+  assert.equal(snapPerc(0, 8), 0); // 0 stays 0
+  assert.equal(snapPerc(30, 8), 25);
+  assert.equal(snapPerc(5, 8), 12.5); // at least one day
+  assert.equal(snapPerc(90, 16), 87.5);
+  assert.equal(snapPerc(100, 16), 100);
+  assert.equal(freqLabel(100, 8), '8 days');
+  assert.equal(freqLabel(12.5, 8), '1 day');
+  assert.equal(freqLabel(0, 8), '0 days');
+});
+
 check('formatDuration renders m:ss', () => {
   assert.equal(formatDuration(2), '2:00');
   assert.equal(formatDuration(2.3333333333333335), '2:20');

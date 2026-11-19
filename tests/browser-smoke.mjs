@@ -70,7 +70,23 @@ try {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForSelector('#pieces-body tr');
   const firstPerc = await page.locator('.perc-val').first().textContent();
-  check('slider edit persists across reload', firstPerc?.trim() === '50%', `got ${firstPerc}`);
+  check('slider edit persists across reload', firstPerc?.trim() === '4 days', `got ${firstPerc}`);
+  // Frequency slider step is one day (100/num_days), like Flask's
+  // updateSlider(); the label shows days, not percent.
+  const firstStep = await page.locator('[data-piece-slider]').first().getAttribute('step');
+  check('slider step is 100/num_days (12.5 at 8 days)', firstStep === '12.5', `got ${firstStep}`);
+  await page.locator('#num-days').fill('16');
+  await page.locator('#num-days').blur();
+  await page.waitForTimeout(200);
+  const step16 = await page.locator('[data-piece-slider]').first().getAttribute('step');
+  const label16 = await page.locator('.perc-val').first().textContent();
+  check('changing num-days re-steps sliders (6.25 at 16 days)', step16 === '6.25', `got ${step16}`);
+  check('changing num-days re-labels in days (50% of 16 = 8 days)', label16?.trim() === '8 days', `got ${label16}`);
+  await page.locator('#num-days').fill('8');
+  await page.locator('#num-days').blur();
+  await page.waitForTimeout(200);
+  const step8 = await page.locator('[data-piece-slider]').first().getAttribute('step');
+  check('changing num-days back restores the step', step8 === '12.5', `got ${step8}`);
   const stored = await page.evaluate(() => localStorage.getItem('practiae-gdrive:demo:v1'));
   check('demo key used in localStorage', !!stored && stored.includes('Toutes les pièces'));
   const realKey = await page.evaluate(() => localStorage.getItem('practiae-gdrive:v1'));
@@ -213,7 +229,7 @@ try {
   await cardSlider.fill('25');
   await mob.waitForTimeout(200);
   check('mobile: card slider updates its value',
-    (await mob.locator('.piece-card .perc-val').first().textContent())?.trim() === '25%');
+    (await mob.locator('.piece-card .perc-val').first().textContent())?.trim() === '2'); // 25% of 8 days
   // Tap-to-edit on a card title (no double-click on touch).
   await mob.locator('.card-title').first().click();
   await mob.waitForSelector('.piece-card .inline-edit', { timeout: 5000 });

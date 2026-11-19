@@ -60,6 +60,38 @@ export function parseDuration(text) {
   return Number.isFinite(n) ? Math.max(0, n) : 0;
 }
 
+/**
+ * Frequency slider helpers — mirror the Flask app's routineForm.js.
+ * Occurrences are k = round(perc * num_days / 100), so one day is worth
+ * 100/num_days percent: the slider step must be that, not a fixed 5%,
+ * or stops land between days (dead stops) and jumps are uneven.
+ */
+export function freqStep(numDays) {
+  return 100 / Math.max(1, numDays);
+}
+
+/** Frequency percent -> whole days, same rounding as the generator's k. */
+export function freqDays(perc, numDays) {
+  return Math.round(((perc || 0) * Math.max(1, numDays)) / 100);
+}
+
+/**
+ * Snap a stored percent to the day grid; 0 stays 0, anything else is at
+ * least one day. Applied when the day count changes, like Flask's
+ * updateSlider().
+ */
+export function snapPerc(perc, numDays) {
+  if (!perc) return 0;
+  const step = freqStep(numDays);
+  return Math.max(step, Math.round(perc / step) * step);
+}
+
+/** Day-count label, e.g. "1 day", "4 days", "0 days". */
+export function freqLabel(perc, numDays) {
+  const d = freqDays(perc, numDays);
+  return `${d} day${d === 1 ? '' : 's'}`;
+}
+
 export function download(filename, text, mime = 'application/json') {
   // Chrome falls back to the name "download" for blob-URL downloads whose
   // download attribute contains non-ASCII characters — the default

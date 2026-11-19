@@ -4,7 +4,7 @@
 // Mutations go through mutate() -> persist (adapter.save) -> render().
 // One document-level click handler (data-action) — no per-element onclick.
 
-import { esc, uid, guard, download, clamp, formatDuration, parseDuration } from './utils.js';
+import { esc, uid, guard, download, clamp, formatDuration, parseDuration, freqStep, freqDays, snapPerc, freqLabel } from './utils.js';
 import { resolveClientId, saveClientId, driveFolderName } from './config.js';
 import { blankPiece, blankProgram, normaliseDoc, seedFromDefault, currentProgram,
   renumber, groupsAsRanks, generationPieces, piecesPerDay } from './store.js';
@@ -76,15 +76,15 @@ function renderPrograms() {
     </button></li>`).join('');
 }
 
-function pieceRow(p) {
+function pieceRow(p, numDays) {
   const daysLabel = p.custom_days?.length ? `Days ${p.custom_days.map((d) => d + 1).join(', ')}` : 'Any day';
   const tags = (p.tags || []).map((t) => `<span class="tag" style="--tag-color:${esc(tagColor(t))}">${esc(t)}</span>`).join(' ');
   return `<tr data-piece-id="${esc(p.id)}">
     <td class="rank">${p.rank + 1}</td>
     <td class="editable" data-action="edit-text" data-field="title" data-id="${esc(p.id)}" title="Double-click to edit">${esc(p.title) || '<span class="muted">Untitled</span>'}</td>
     <td class="editable" data-action="edit-text" data-field="composer" data-id="${esc(p.id)}" title="Double-click to edit">${esc(p.composer)}</td>
-    <td><span class="perc-wrap"><input type="range" min="0" max="100" step="5" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency percent">
-        <span class="perc-val">${p.perc}%</span></span></td>
+    <td><span class="perc-wrap"><input type="range" min="0" max="100" step="${freqStep(numDays)}" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
+        <span class="perc-val">${freqLabel(p.perc, numDays)}</span></span></td>
     <td class="editable" data-action="edit-tags" data-id="${esc(p.id)}" title="Double-click to edit tags">${tags || '<span class="muted">—</span>'}</td>
     <td class="editable" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}" title="Double-click to edit">${formatDuration(p.duration_min)}</td>
     <td><button class="btn small" data-action="edit-days" data-id="${esc(p.id)}">${esc(daysLabel)}</button></td>
@@ -97,7 +97,7 @@ function pieceRow(p) {
 // so one delegated handler serves both. On a phone the table is hidden
 // and these cards are shown instead: big title, full-width slider,
 // tap-to-edit (no double-click on touch), actions in one thumb row.
-function pieceCard(p) {
+function pieceCard(p, numDays) {
   const daysLabel = p.custom_days?.length ? `Days ${p.custom_days.map((d) => d + 1).join(', ')}` : 'Any day';
   const tags = (p.tags || []).map((t) => `<span class="tag" style="--tag-color:${esc(tagColor(t))}">${esc(t)}</span>`).join(' ');
   return `<article class="piece-card" data-piece-id="${esc(p.id)}">
@@ -108,8 +108,8 @@ function pieceCard(p) {
       </div>
       <span class="card-rank">#${p.rank + 1}</span>
     </div>
-    <label class="card-freq"><span class="perc-wrap"><input type="range" min="0" max="100" step="5" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency percent">
-      <span class="perc-val">${p.perc}%</span></span><span class="card-freq-hint">of days</span></label>
+    <label class="card-freq"><span class="perc-wrap"><input type="range" min="0" max="100" step="${freqStep(numDays)}" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
+      <span class="perc-val">${freqDays(p.perc, numDays)}</span></span><span class="card-freq-hint">of days</span></label>
     ${tags ? `<div class="card-tags editable" data-action="edit-tags" data-id="${esc(p.id)}">${tags}</div>` : ''}
     <div class="card-meta"><button class="btn small" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}">${formatDuration(p.duration_min) || 'Add duration'}</button></div>
     <div class="card-actions">
@@ -128,9 +128,9 @@ function renderPieces() {
   if (filterTags.length) pieces = pieces.filter((x) => filterTags.every((t) => (x.tags || []).includes(t)));
   if (searchQuery) pieces = pieces.filter((x) =>
     `${x.title} ${x.composer} ${(x.tags || []).join(' ')}`.toLowerCase().includes(searchQuery));
-  $('#pieces-body').innerHTML = pieces.map(pieceRow).join('') ||
+  $('#pieces-body').innerHTML = pieces.map((x) => pieceRow(x, p.num_days)).join('') ||
     `<tr><td colspan="9" class="empty">No pieces match. Add one below, or clear the filter.</td></tr>`;
-  $('#pieces-cards').innerHTML = pieces.map(pieceCard).join('') ||
+  $('#pieces-cards').innerHTML = pieces.map((x) => pieceCard(x, p.num_days)).join('') ||
     `<p class="empty">No pieces match. Add one below, or clear the filter.</p>`;
   const perDay = `≈ ${piecesPerDay(p).toFixed(2)} pieces / day`;
   $('#pieces-per-day').textContent = perDay;
@@ -145,6 +145,24 @@ function renderPieces() {
   const allTags = [...new Set(p.pieces.flatMap((x) => x.tags || []))].sort();
   $('#filter-tags').innerHTML = allTags.map((t) =>
     `<label class="filter-tag"><input type="checkbox" data-filter-tag="${esc(t)}" ${filterTags.includes(t) ? 'checked' : ''}> ${esc(t)}</label>`).join('');
+}
+
+// Update the visible frequency sliders in place (step, value, label) after
+// the day count changed — that path does not re-render (see the num-days
+// handler), so the sliders would otherwise keep the old grid.
+function syncFreqSliders() {
+  const p = prog(); if (!p) return;
+  const step = freqStep(p.num_days);
+  $$('[data-piece-slider]').forEach((s) => {
+    const piece = p.pieces.find((x) => x.id === s.dataset.pieceSlider);
+    if (!piece) return;
+    s.step = String(step);
+    s.value = String(piece.perc);
+    const val = s.closest('.perc-wrap')?.querySelector('.perc-val');
+    if (val) val.textContent = s.closest('.piece-card')
+      ? String(freqDays(piece.perc, p.num_days))
+      : freqLabel(piece.perc, p.num_days);
+  });
 }
 
 function renderRoutine() {
@@ -444,11 +462,14 @@ document.addEventListener('input', (e) => {
     if (!piece) return;
     piece.perc = +slider.value;
     // Both copies of the slider (table row + mobile card) show the same
-    // value, so update every visible one for this piece.
+    // value, so update every visible one for this piece. The row label
+    // shows "N days"; the card shows the bare number ("of days" follows).
     $$(`[data-piece-slider="${slider.dataset.pieceSlider}"]`).forEach((s) => {
       s.value = slider.value;
       const val = s.closest('.perc-wrap')?.querySelector('.perc-val');
-      if (val) val.textContent = `${piece.perc}%`;
+      if (val) val.textContent = s.closest('.piece-card')
+        ? String(freqDays(piece.perc, p.num_days))
+        : freqLabel(piece.perc, p.num_days);
     });
     $('#pieces-per-day').textContent = `≈ ${piecesPerDay(p).toFixed(2)} pieces / day`;
     persist();
@@ -475,12 +496,16 @@ document.addEventListener('change', (e) => {
     const p = prog(); const raw = parseInt(e.target.value, 10);
     const n = clamp(Number.isNaN(raw) ? 8 : raw, 1, 31);
     // No render here (see mutateNoRender): `change` fires on blur and a
-    // render would swallow the click that caused the blur.
+    // render would swallow the click that caused the blur. The day grid
+    // moved, so snap every frequency to it (Flask's updateSlider) and
+    // update the visible sliders in place.
     mutateNoRender(() => {
       p.num_days = n;
       p.day_names = Array.from({ length: n }, (_, i) => p.day_names[i] || `Jour ${i + 1}`);
       p.pieces.forEach((pc) => { if (pc.custom_days) pc.custom_days = pc.custom_days.filter((d) => d < n); });
+      p.pieces.forEach((pc) => { pc.perc = snapPerc(pc.perc, n); });
     });
+    syncFreqSliders();
     e.target.value = String(n);
     $('#day-names').value = p.day_names.join(', ');
   }
