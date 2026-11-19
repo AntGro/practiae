@@ -109,7 +109,7 @@ function pieceCard(p, numDays) {
       <span class="card-rank">#${p.rank + 1}</span>
     </div>
     <label class="card-freq"><span class="perc-wrap"><input type="range" min="0" max="100" step="${freqStep(numDays)}" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
-      <span class="perc-val">${freqDays(p.perc, numDays)}</span></span><span class="card-freq-hint">of days</span></label>
+      <span class="perc-val">${freqDays(p.perc, numDays)} / ${numDays}</span></span><span class="card-freq-hint">days</span></label>
     ${`<div class="card-tags editable" data-action="edit-tags" data-id="${esc(p.id)}">${tags || '<span class="muted">Add tags</span>'}</div>`}
     <div class="card-meta"><button class="btn small" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}">${formatDuration(p.duration_min) || 'Add duration'}</button></div>
     <div class="card-actions">
@@ -160,7 +160,7 @@ function syncFreqSliders() {
     s.value = String(piece.perc);
     const val = s.closest('.perc-wrap')?.querySelector('.perc-val');
     if (val) val.textContent = s.closest('.piece-card')
-      ? String(freqDays(piece.perc, p.num_days))
+      ? `${freqDays(piece.perc, p.num_days)} / ${p.num_days}`
       : freqLabel(piece.perc, p.num_days);
   });
 }
@@ -511,12 +511,12 @@ document.addEventListener('input', (e) => {
     piece.perc = +slider.value;
     // Both copies of the slider (table row + mobile card) show the same
     // value, so update every visible one for this piece. The row label
-    // shows "N days"; the card shows the bare number ("of days" follows).
+    // shows "N days"; the card shows "N / M days".
     $$(`[data-piece-slider="${slider.dataset.pieceSlider}"]`).forEach((s) => {
       s.value = slider.value;
       const val = s.closest('.perc-wrap')?.querySelector('.perc-val');
       if (val) val.textContent = s.closest('.piece-card')
-        ? String(freqDays(piece.perc, p.num_days))
+        ? `${freqDays(piece.perc, p.num_days)} / ${p.num_days}`
         : freqLabel(piece.perc, p.num_days);
     });
     $('#pieces-per-day').textContent = `≈ ${piecesPerDay(p).toFixed(2)} pieces / day`;
