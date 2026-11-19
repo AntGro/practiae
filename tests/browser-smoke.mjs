@@ -297,7 +297,7 @@ try {
   await cardSlider.fill('25');
   await mob.waitForTimeout(200);
   check('mobile: card slider updates its value',
-    (await mob.locator('.piece-card .perc-val').first().textContent())?.trim() === '2'); // 25% of 8 days
+    (await mob.locator('.piece-card .perc-val').first().textContent())?.trim() === '2 / 8'); // 25% of 8 days
   // Tap-to-edit on a card title (no double-click on touch).
   await mob.locator('.card-title').first().click();
   await mob.waitForSelector('.piece-card .inline-edit', { timeout: 5000 });
