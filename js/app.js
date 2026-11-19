@@ -4,7 +4,7 @@
 // Mutations go through mutate() -> persist (adapter.save) -> render().
 // One document-level click handler (data-action) — no per-element onclick.
 
-import { esc, uid, guard, download, clamp, formatDuration } from './utils.js';
+import { esc, uid, guard, download, clamp, formatDuration, parseDuration } from './utils.js';
 import { resolveClientId, saveClientId, driveFolderName } from './config.js';
 import { blankPiece, blankProgram, normaliseDoc, seedFromDefault, currentProgram,
   renumber, groupsAsRanks, generationPieces, piecesPerDay } from './store.js';
@@ -272,16 +272,19 @@ function render() {
 function startTextEdit(cell, field, id) {
   const p = prog(); const piece = p.pieces.find((x) => x.id === id);
   if (!piece || cell.querySelector('input')) return;
-  const old = field === 'duration_min' ? String(piece.duration_min || '') : String(piece[field] || '');
+  // The duration cell displays m:ss, so the edit box must too — showing the
+  // raw float ("2.3333333333333335") would be the bug all over again, and
+  // typing "2:20" into a parseFloat box would silently save 2 minutes.
+  const old = field === 'duration_min' ? formatDuration(piece.duration_min) : String(piece[field] || '');
   const originalHTML = cell.innerHTML; // restore on cancel (no full render — see below)
-  cell.innerHTML = `<input class="inline-edit" value="${esc(old)}" aria-label="Edit ${field}">`;
+  cell.innerHTML = `<input class="inline-edit" value="${esc(old)}" ${field === 'duration_min' ? 'placeholder="m:ss"' : ''} aria-label="Edit ${field}">`;
   const input = cell.querySelector('input');
   input.focus(); input.select();
   let done = false;
   const save = () => { if (done) return; done = true;
     const v = input.value.trim();
     mutate(() => {
-      if (field === 'duration_min') piece.duration_min = Math.max(0, parseFloat(v) || 0);
+      if (field === 'duration_min') piece.duration_min = parseDuration(v);
       else piece[field] = v;
     });
   };

@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { generateRoutine, pieceLabel, parseDayPattern, computeTagDistribution } from '../js/generate.js';
 import { normaliseDoc, seedFromDefault, groupsAsRanks } from '../js/store.js';
-import { formatDuration } from '../js/utils.js';
+import { formatDuration, parseDuration } from '../js/utils.js';
 import { readFileSync } from 'node:fs';
 
 const mkPiece = (over) => ({ id: over.id ?? `p${over.rank}`, rank: over.rank, title: over.title ?? `Piece ${over.rank}`,
@@ -111,6 +111,22 @@ check('formatDuration renders m:ss', () => {
   assert.equal(formatDuration(0), '');
   assert.equal(formatDuration(null), '');
   assert.equal(formatDuration(undefined), '');
+});
+
+// The edit box shows m:ss and must read it back — a plain parseFloat
+// would turn "2:20" into 2 minutes. A bare number is still minutes.
+check('parseDuration reads m:ss and plain minutes', () => {
+  assert.equal(parseDuration('2:20'), 2 + 20 / 60);
+  assert.equal(parseDuration('2:00'), 2);
+  assert.equal(parseDuration('0:30'), 0.5);
+  assert.equal(parseDuration('2.5'), 2.5);
+  assert.equal(parseDuration('2'), 2);
+  assert.equal(parseDuration(''), 0);
+  assert.equal(parseDuration('abc'), 0);
+  assert.equal(parseDuration('-1'), 0);
+  assert.equal(parseDuration(' 2:20 '), 2 + 20 / 60);
+  assert.equal(formatDuration(parseDuration('2:20')), '2:20');
+  assert.equal(formatDuration(parseDuration('2.5')), '2:30');
 });
 
 console.log(`\n${passed} tests passed`);

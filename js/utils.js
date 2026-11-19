@@ -46,6 +46,20 @@ export function formatDuration(min) {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
+/**
+ * Inverse of formatDuration: parse what the duration edit box accepts.
+ * "2:20" → 7/3 minutes; a plain number is minutes ("2.5" → 2.5), as the
+ * edit box used to take; anything else (empty, text) → 0. Never negative.
+ */
+export function parseDuration(text) {
+  const v = String(text ?? '').trim();
+  if (!v) return 0;
+  const m = v.match(/^(-?\d+):(\d+)$/);
+  if (m) return Math.max(0, parseInt(m[1], 10) + parseInt(m[2], 10) / 60);
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
 export function download(filename, text, mime = 'application/json') {
   // Chrome falls back to the name "download" for blob-URL downloads whose
   // download attribute contains non-ASCII characters — the default
