@@ -7,7 +7,8 @@
 import { esc, uid, guard, download, clamp, formatDuration, freqDays, snapPerc, freqLabel, durationFromMinSec } from './utils.js';
 import { resolveClientId, saveClientId, driveFolderName } from './config.js';
 import { blankPiece, blankProgram, normaliseDoc, seedFromDefault, currentProgram,
-  renumber, groupsAsRanks, generationPieces, piecesPerDay } from './store.js';
+  renumber, groupsAsRanks, generationPieces, piecesPerDay, convertMode } from './store.js';
+import { buildSession, todayStr, dueLabel, lastPlayedById, playedIdsOn, formatDayLabel } from './session.js';
 import { pieceLabel, tagColor, parseDayPattern } from './generate.js';
 import { generateOptimizedRoutine } from './optimize.js';
 import { createLocalAdapter, DEMO_KEY } from './adapters/local.js';
@@ -81,20 +82,36 @@ function renderPrograms() {
     </button></li>`).join('');
 }
 
-function pieceRow(p, numDays) {
-  const daysLabel = p.custom_days?.length ? `Days ${p.custom_days.map((d) => d + 1).join(', ')}` : 'Any day';
-  const tags = (p.tags || []).map((t) => `<span class="tag" style="--tag-color:${esc(tagColor(t))}">${esc(t)}</span>`).join(' ');
-  return `<tr data-piece-id="${esc(p.id)}">
-    <td class="rank">${p.rank + 1}</td>
-    <td class="editable" data-action="edit-text" data-field="title" data-id="${esc(p.id)}" title="Double-click to edit">${esc(p.title) || '<span class="muted">Untitled</span>'}</td>
-    <td class="editable" data-action="edit-text" data-field="composer" data-id="${esc(p.id)}" title="Double-click to edit">${esc(p.composer)}</td>
-    <td><span class="perc-wrap"><input type="range" min="0" max="100" step="1" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
-        <span class="perc-val">${freqLabel(p.perc, numDays)}</span></span></td>
-    <td class="editable" data-action="edit-tags" data-id="${esc(p.id)}" title="Double-click to edit tags">${tags || '<span class="muted">—</span>'}</td>
-    <td class="editable" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}" title="Double-click to edit">${formatDuration(p.duration_min)}</td>
-    <td><button class="btn small" data-action="edit-days" data-id="${esc(p.id)}">${esc(daysLabel)}</button></td>
-    <td><button class="btn small" data-action="edit-notes" data-id="${esc(p.id)}">${p.notes ? 'Notes…' : 'Add note'}</button></td>
-    <td><button class="btn small danger" data-action="delete-piece" data-id="${esc(p.id)}" aria-label="Delete piece">Delete</button></td>
+// Gap cell (gap mode): number input for the gap in days + "every N days"
+// + the due status from the play log. The frequency slider is the
+// frequency-mode equivalent (see pieceRow / pieceCard).
+function gapCell(x, lastById) {
+  const every = x.gap === 0 ? 'every day' : `every ${x.gap + 1} days`;
+  const due = dueLabel(x, lastById.get(x.id), todayStr());
+  return `<span class="gap-wrap"><input type="number" min="0" max="30" step="1" value="${x.gap}" data-piece-gap="${esc(x.id)}" aria-label="Gap in days">
+    <span class="gap-val">${every} · ${esc(due)}</span></span>`;
+}
+
+function pieceRow(x, prog, lastById) {
+  const daysLabel = x.custom_days?.length ? `Days ${x.custom_days.map((d) => d + 1).join(', ')}` : 'Any day';
+  const tags = (x.tags || []).map((t) => `<span class="tag" style="--tag-color:${esc(tagColor(t))}">${esc(t)}</span>`).join(' ');
+  const freqCell = prog.mode === 'gap' ? gapCell(x, lastById)
+    : `<span class="perc-wrap"><input type="range" min="0" max="100" step="1" value="${x.perc}" data-piece-slider="${esc(x.id)}" aria-label="Frequency in days">
+        <span class="perc-val">${freqLabel(x.perc, prog.num_days)}</span></span>`;
+  // Fixed days are ignored in gap mode (a gap schedule has no fixed
+  // program days), so the Days button is hidden there.
+  const daysCell = prog.mode === 'gap' ? '<td></td>'
+    : `<td><button class="btn small" data-action="edit-days" data-id="${esc(x.id)}">${esc(daysLabel)}</button></td>`;
+  return `<tr data-piece-id="${esc(x.id)}">
+    <td class="rank">${x.rank + 1}</td>
+    <td class="editable" data-action="edit-text" data-field="title" data-id="${esc(x.id)}" title="Double-click to edit">${esc(x.title) || '<span class="muted">Untitled</span>'}</td>
+    <td class="editable" data-action="edit-text" data-field="composer" data-id="${esc(x.id)}" title="Double-click to edit">${esc(x.composer)}</td>
+    <td>${freqCell}</td>
+    <td class="editable" data-action="edit-tags" data-id="${esc(x.id)}" title="Double-click to edit tags">${tags || '<span class="muted">—</span>'}</td>
+    <td class="editable" data-action="edit-text" data-field="duration_min" data-id="${esc(x.id)}" title="Double-click to edit">${formatDuration(x.duration_min)}</td>
+    ${daysCell}
+    <td><button class="btn small" data-action="edit-notes" data-id="${esc(x.id)}">${x.notes ? 'Notes…' : 'Add note'}</button></td>
+    <td><button class="btn small danger" data-action="delete-piece" data-id="${esc(x.id)}" aria-label="Delete piece">Delete</button></td>
   </tr>`;
 }
 
@@ -102,25 +119,30 @@ function pieceRow(p, numDays) {
 // so one delegated handler serves both. On a phone the table is hidden
 // and these cards are shown instead: big title, full-width slider,
 // tap-to-edit (no double-click on touch), actions in one thumb row.
-function pieceCard(p, numDays) {
-  const daysLabel = p.custom_days?.length ? `Days ${p.custom_days.map((d) => d + 1).join(', ')}` : 'Any day';
-  const tags = (p.tags || []).map((t) => `<span class="tag" style="--tag-color:${esc(tagColor(t))}">${esc(t)}</span>`).join(' ');
-  return `<article class="piece-card" data-piece-id="${esc(p.id)}">
+function pieceCard(x, prog, lastById) {
+  const daysLabel = x.custom_days?.length ? `Days ${x.custom_days.map((d) => d + 1).join(', ')}` : 'Any day';
+  const tags = (x.tags || []).map((t) => `<span class="tag" style="--tag-color:${esc(tagColor(t))}">${esc(t)}</span>`).join(' ');
+  const freqBlock = prog.mode === 'gap'
+    ? `<div class="card-freq">${gapCell(x, lastById)}</div>`
+    : `<label class="card-freq"><span class="perc-wrap"><input type="range" min="0" max="100" step="1" value="${x.perc}" data-piece-slider="${esc(x.id)}" aria-label="Frequency in days">
+      <span class="perc-val">${freqDays(x.perc, prog.num_days)} / ${prog.num_days}</span></span><span class="card-freq-hint">days</span></label>`;
+  const daysBtn = prog.mode === 'gap' ? ''
+    : `<button class="btn" data-action="edit-days" data-id="${esc(x.id)}">${esc(daysLabel)}</button>`;
+  return `<article class="piece-card" data-piece-id="${esc(x.id)}">
     <div class="card-head">
       <div class="card-titles">
-        <div class="card-title editable" data-action="edit-text" data-field="title" data-id="${esc(p.id)}">${esc(p.title) || '<span class="muted">Untitled</span>'}</div>
-        <div class="card-composer editable" data-action="edit-text" data-field="composer" data-id="${esc(p.id)}">${esc(p.composer) || '<span class="muted">No composer</span>'}</div>
+        <div class="card-title editable" data-action="edit-text" data-field="title" data-id="${esc(x.id)}">${esc(x.title) || '<span class="muted">Untitled</span>'}</div>
+        <div class="card-composer editable" data-action="edit-text" data-field="composer" data-id="${esc(x.id)}">${esc(x.composer) || '<span class="muted">No composer</span>'}</div>
       </div>
-      <span class="card-rank">#${p.rank + 1}</span>
+      <span class="card-rank">#${x.rank + 1}</span>
     </div>
-    <label class="card-freq"><span class="perc-wrap"><input type="range" min="0" max="100" step="1" value="${p.perc}" data-piece-slider="${esc(p.id)}" aria-label="Frequency in days">
-      <span class="perc-val">${freqDays(p.perc, numDays)} / ${numDays}</span></span><span class="card-freq-hint">days</span></label>
-    ${`<div class="card-tags editable" data-action="edit-tags" data-id="${esc(p.id)}">${tags || '<span class="muted">Add tags</span>'}</div>`}
-    <div class="card-meta"><button class="btn small" data-action="edit-text" data-field="duration_min" data-id="${esc(p.id)}">${formatDuration(p.duration_min) || 'Add duration'}</button></div>
+    ${freqBlock}
+    ${`<div class="card-tags editable" data-action="edit-tags" data-id="${esc(x.id)}">${tags || '<span class="muted">Add tags</span>'}</div>`}
+    <div class="card-meta"><button class="btn small" data-action="edit-text" data-field="duration_min" data-id="${esc(x.id)}">${formatDuration(x.duration_min) || 'Add duration'}</button></div>
     <div class="card-actions">
-      <button class="btn" data-action="edit-days" data-id="${esc(p.id)}">${esc(daysLabel)}</button>
-      <button class="btn" data-action="edit-notes" data-id="${esc(p.id)}">${p.notes ? 'Notes…' : 'Add note'}</button>
-      <button class="btn danger" data-action="delete-piece" data-id="${esc(p.id)}" aria-label="Delete piece">Delete</button>
+      ${daysBtn}
+      <button class="btn" data-action="edit-notes" data-id="${esc(x.id)}">${x.notes ? 'Notes…' : 'Add note'}</button>
+      <button class="btn danger" data-action="delete-piece" data-id="${esc(x.id)}" aria-label="Delete piece">Delete</button>
     </div>
   </article>`;
 }
@@ -128,28 +150,52 @@ function pieceCard(p, numDays) {
 function renderPieces() {
   const p = prog();
   if (!p) { $('#pieces-body').innerHTML = ''; $('#pieces-cards').innerHTML = ''; return; }
+  const lastById = lastPlayedById(p.play_log);
   let pieces = [...p.pieces].sort((a, b) => a.rank - b.rank);
-  if (hideZero) pieces = pieces.filter((x) => (x.perc || 0) > 0);
+  if (hideZero && p.mode === 'frequency') pieces = pieces.filter((x) => (x.perc || 0) > 0);
   if (filterTags.length) pieces = pieces.filter((x) => filterTags.every((t) => (x.tags || []).includes(t)));
   if (searchQuery) pieces = pieces.filter((x) =>
     `${x.title} ${x.composer} ${(x.tags || []).join(' ')}`.toLowerCase().includes(searchQuery));
-  $('#pieces-body').innerHTML = pieces.map((x) => pieceRow(x, p.num_days)).join('') ||
+  $('#pieces-body').innerHTML = pieces.map((x) => pieceRow(x, p, lastById)).join('') ||
     `<tr><td colspan="9" class="empty">No pieces match. Add one below, or clear the filter.</td></tr>`;
-  $('#pieces-cards').innerHTML = pieces.map((x) => pieceCard(x, p.num_days)).join('') ||
+  $('#pieces-cards').innerHTML = pieces.map((x) => pieceCard(x, p, lastById)).join('') ||
     `<p class="empty">No pieces match. Add one below, or clear the filter.</p>`;
-  const perDay = `≈ ${piecesPerDay(p).toFixed(2)} pieces / day`;
+  const perDay = p.mode === 'gap' ? `${p.pieces.length} pieces · ${p.session_minutes} min / session`
+    : `≈ ${piecesPerDay(p).toFixed(2)} pieces / day`;
   $('#pieces-per-day').textContent = perDay;
-  $('#mobile-pieces-per-day').textContent = pieces.length === p.pieces.length
-    ? `${p.pieces.length} pieces · ≈ ${piecesPerDay(p).toFixed(0)}/day`
-    : `${pieces.length} of ${p.pieces.length} pieces · ≈ ${piecesPerDay(p).toFixed(0)}/day`;
+  const mobileSummary = p.mode === 'gap' ? `${p.pieces.length} pieces · ${p.session_minutes} min / session`
+    : `${p.pieces.length} pieces · ≈ ${piecesPerDay(p).toFixed(0)}/day`;
+  $('#mobile-pieces-per-day').textContent = pieces.length === p.pieces.length ? mobileSummary
+    : `${pieces.length} of ${p.pieces.length} pieces`;
   $('#pieces-count').textContent = pieces.length === p.pieces.length ? '' : `${pieces.length} of ${p.pieces.length} pieces shown`;
   $('#program-title').textContent = p.name;
   $('#num-days').value = p.num_days;
   $('#balance-by').value = p.balance_by || 'pieces';
   $('#day-names').value = (p.day_names || []).join(', ');
-  const allTags = [...new Set(p.pieces.flatMap((x) => x.tags || []))].sort();
-  $('#filter-tags').innerHTML = allTags.map((t) =>
+  syncModeUI(p);
+  const allTags = [...new Set(p.pieces.flatMap((x) => x.tags || []))].sort();  $('#filter-tags').innerHTML = allTags.map((t) =>
     `<label class="filter-tag"><input type="checkbox" data-filter-tag="${esc(t)}" ${filterTags.includes(t) ? 'checked' : ''}> ${esc(t)}</label>`).join('');
+}
+
+// Mode-dependent controls: frequency mode shows the cycle settings
+// (days, day names, Hide 0%, Balance by); gap mode shows the session cap
+// instead. The Generate buttons say what they generate in each mode.
+function syncModeUI(p) {
+  const isGap = p.mode === 'gap';
+  $('#num-days-wrap').hidden = isGap;
+  $('#day-names-wrap').hidden = isGap;
+  $('#hide-zero-wrap').hidden = isGap;
+  $('#balance-by-wrap').hidden = isGap;
+  $('#session-minutes-wrap').hidden = !isGap;
+  $('#schedule-mode').value = p.mode;
+  $('#session-minutes').value = p.session_minutes;
+  $('#freq-header').textContent = isGap ? 'Gap' : 'Frequency';
+  $('#pieces-hint').textContent = isGap
+    ? 'Set the gap for each piece: 0 = every day, 1 = every other day. Generate builds today\'s session from the gaps and the play history, within the session cap.'
+    : 'Double-click a cell — or tap it on a phone — to edit it (Enter saves, Esc cancels). Drag the frequency slider to set how often a piece appears: 100% = every day, 50% = every other day.';
+  $$('[data-action="generate"]').forEach((b) => {
+    b.textContent = isGap ? "Generate today's session" : 'Generate routine';
+  });
 }
 
 // Update the visible frequency sliders in place (step, value, label) after
@@ -183,36 +229,60 @@ function renderRoutine() {
   const box = $('#routine-box');
   const mob = $('#routine-mobile');
   if (!p?.pinned_routine) {
-    box.innerHTML = `<p class="muted">No routine generated yet for this program. Set frequencies, then Generate.</p>`;
-    mob.innerHTML = `<p class="muted">No routine generated yet. Set frequencies, then tap Generate below.</p>`;
+    box.innerHTML = p?.mode === 'gap'
+      ? `<p class="muted">No session generated yet for this program. Set the gaps, then Generate today's session.</p>`
+      : `<p class="muted">No routine generated yet for this program. Set frequencies, then Generate.</p>`;
+    mob.innerHTML = p?.mode === 'gap'
+      ? `<p class="muted">No session generated yet. Set the gaps, then tap Generate below.</p>`
+      : `<p class="muted">No routine generated yet. Set frequencies, then tap Generate below.</p>`;
     $('#tag-chart').innerHTML = '';
     return;
   }
   const r = p.pinned_routine;
+  const isGap = p.mode === 'gap';
+  const today = todayStr();
+  // Gap mode: an item is done iff the play log has it for today (the log
+  // is the record — unlike frequency mode, where done marks are in-memory
+  // only). The session's ids rows give the piece id per cell.
+  const playedToday = isGap ? playedIdsOn(p.play_log, today) : null;
   // Mobile day-by-day view: one day at a time beats an 8-column table
   // squeezed onto a phone. The desktop table is hidden on mobile.
   const day = Math.max(0, Math.min(routineDay, r.columns.length - 1));
   routineDay = day;
-  const items = r.data.map((row) => row[day]).filter(Boolean);
-  const doneCount = items.reduce((n, cell) => n + (routineDone.has(doneKey(p.id, day, cell)) ? 1 : 0), 0);
-  mob.innerHTML = `<div class="day-nav">
+  const isDone = (item) => isGap
+    ? (item.id ? playedToday.has(item.id) : false)
+    : routineDone.has(doneKey(p.id, day, item.label));
+  const items = r.data.map((row, rIdx) => ({ label: row[day], id: r.ids?.[rIdx]?.[day] || null })).filter((x) => x.label);
+  const doneCount = items.reduce((n, item) => n + (isDone(item) ? 1 : 0), 0);
+  // Gap mode: a session generated on another day is stale — the user
+  // practices today, so the session should be today's.
+  const staleNote = isGap && r.date && r.date !== today
+    ? `<p class="muted">This session was generated for ${esc(formatDayLabel(r.date))}. Generate a new session for today.</p>` : '';
+  const warningsHtml = isGap && r.warnings?.length
+    ? r.warnings.map((w) => `<p class="muted">${esc(w)}</p>`).join('') : '';
+  const minutes = isGap && r.totalMinutes != null ? ` · ${r.totalMinutes} min` : '';
+  mob.innerHTML = `${staleNote}<div class="day-nav">
       <button class="btn" data-action="routine-day" data-day="${day - 1}" ${day === 0 ? 'disabled' : ''} aria-label="Previous day">←</button>
       <div class="day-chips">${r.columns.map((c, i) => `<button class="day-chip ${i === day ? 'active' : ''}" data-action="routine-day" data-day="${i}">${esc(c)}</button>`).join('')}</div>
       <button class="btn" data-action="routine-day" data-day="${day + 1}" ${day === r.columns.length - 1 ? 'disabled' : ''} aria-label="Next day">→</button>
     </div>
-    <p class="muted">${items.length} piece${items.length === 1 ? '' : 's'} · ${esc(r.columns[day])}</p>
-    <ol class="day-list">${items.map((cell) => {
-      const done = routineDone.has(doneKey(p.id, day, cell));
-      return `<li class="${done ? 'done' : ''}" data-action="routine-day-item" data-day="${day}" data-piece="${esc(cell)}"><span class="day-tick" aria-hidden="true">${done ? '✓' : ''}</span><span class="day-label">${esc(cell)}</span></li>`;
+    <p class="muted">${items.length} piece${items.length === 1 ? '' : 's'} · ${esc(r.columns[day])}${minutes}</p>
+    ${warningsHtml}
+    <ol class="day-list">${items.map((item) => {
+      const done = isDone(item);
+      return `<li class="${done ? 'done' : ''}" data-action="routine-day-item" data-day="${day}" data-piece="${esc(item.label)}" data-piece-id="${esc(item.id || '')}"><span class="day-tick" aria-hidden="true">${done ? '✓' : ''}</span><span class="day-label">${esc(item.label)}</span></li>`;
     }).join('')}</ol>
     ${doneCount > 0 ? `<button class="btn small" data-action="routine-clear-done" data-day="${day}">Untick all</button>` : ''}
     <p class="muted small">Tap an item to mark it done; tap again to undo.</p>`;
   const maxRows = r.data.length;
   // data-piece on each non-empty cell powers the hover/click highlighting
   // below (same attribute the Flask app used).
-  box.innerHTML = `<table class="routine-table"><thead><tr><th></th>${r.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+  const footer = isGap
+    ? `<p class="muted">${maxRows} piece${maxRows === 1 ? '' : 's'} · ${r.totalMinutes ?? 0} min · ${esc(r.columns[0] || '')}</p>${warningsHtml}`
+    : `<p class="muted">${maxRows} rows · pinned ${p.is_routine_pinned ? 'yes' : 'no'} · hover a piece to see it across all days (click to pin)</p>`;
+  box.innerHTML = `${staleNote}<table class="routine-table"><thead><tr><th></th>${r.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${r.data.map((row, i) => `<tr><th>${esc(r.indices[i] || '')}</th>${row.map((cell) => cell ? `<td data-piece="${esc(cell)}" data-action="routine-cell">${esc(cell)}</td>` : '<td></td>').join('')}</tr>`).join('')}</tbody></table>
-    <p class="muted">${maxRows} rows · pinned ${p.is_routine_pinned ? 'yes' : 'no'} · hover a piece to see it across all days (click to pin)</p>`;
+    ${footer}`;
   const td = r.tag_distribution;
   if (td?.tags?.length) {
     // Durations by label, for the Duration view of the chart.
@@ -414,18 +484,24 @@ function openNotesDialog(id) {
 async function doGenerate(btn) {
   const p = prog(); if (!p) return;
   await guard(btn, async () => {
-    const { exclusion, inclusion } = groupsAsRanks(p);
-    const gen = generateOptimizedRoutine({ num_days: p.num_days, pieces: generationPieces(p) }, exclusion, inclusion, { balanceBy: p.balance_by || 'pieces' });
-    generated = gen;
-    const maxRows = Math.max(0, ...gen.days.map((d) => d.length));
-    const data = Array.from({ length: maxRows }, (_, r) =>
-      gen.days.map((day) => (day[r] ? pieceLabel(day[r]) : '')));
-    routineDay = 0; // new routine opens on day 1 in the mobile day view
+    routineDay = 0; // a new routine/session opens on day 1 in the mobile day view
     clearDone(p.id); // a new routine starts a fresh practice session
-    mutate(() => {
-      p.pinned_routine = { columns: p.day_names, indices: Array.from({ length: maxRows }, (_, i) => `${i + 1}.`), data, tag_distribution: gen.tagDistribution };
-      p.is_routine_pinned = true;
-    });
+    if (p.mode === 'gap') {
+      // Gap mode: one session for today, from the gaps and the play log.
+      const session = buildSession(p, todayStr());
+      mutate(() => { p.pinned_routine = session; p.is_routine_pinned = true; });
+    } else {
+      const { exclusion, inclusion } = groupsAsRanks(p);
+      const gen = generateOptimizedRoutine({ num_days: p.num_days, pieces: generationPieces(p) }, exclusion, inclusion, { balanceBy: p.balance_by || 'pieces' });
+      generated = gen;
+      const maxRows = Math.max(0, ...gen.days.map((d) => d.length));
+      const data = Array.from({ length: maxRows }, (_, r) =>
+        gen.days.map((day) => (day[r] ? pieceLabel(day[r]) : '')));
+      mutate(() => {
+        p.pinned_routine = { columns: p.day_names, indices: Array.from({ length: maxRows }, (_, i) => `${i + 1}.`), data, tag_distribution: gen.tagDistribution };
+        p.is_routine_pinned = true;
+      });
+    }
     // Take the user to the routine they just generated.
     document.getElementById('generated-routine')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     // On a phone, switch to the routine view they just generated.
@@ -498,9 +574,34 @@ document.addEventListener('click', async (e) => {
     case 'routine-day': { const d = +el.dataset.day;
       const r = prog()?.pinned_routine; if (!r || Number.isNaN(d)) break;
       routineDay = Math.max(0, Math.min(d, r.columns.length - 1)); renderRoutine(); break; }
-    case 'routine-day-item': { const key = doneKey(prog()?.id, +el.dataset.day, el.dataset.piece);
-      routineDone.has(key) ? routineDone.delete(key) : routineDone.add(key); renderRoutine(); break; }
-    case 'routine-clear-done': clearDoneDay(prog()?.id, +el.dataset.day); renderRoutine(); break;
+    case 'routine-day-item': {
+      // Gap mode: ticking records the play in the log (persisted); the
+      // done state reads the log, so it survives reloads. Frequency mode
+      // keeps the in-memory done set.
+      if (prog()?.mode === 'gap' && el.dataset.pieceId) {
+        const id = el.dataset.pieceId;
+        const today = todayStr();
+        mutate(() => {
+          const idx = p.play_log.findIndex((e) => e.date === today && e.piece_id === id);
+          if (idx >= 0) p.play_log.splice(idx, 1);
+          else p.play_log.push({ date: today, piece_id: id });
+        });
+      } else {
+        const key = doneKey(prog()?.id, +el.dataset.day, el.dataset.piece);
+        routineDone.has(key) ? routineDone.delete(key) : routineDone.add(key);
+        renderRoutine();
+      }
+      break; }
+    case 'routine-clear-done': {
+      if (prog()?.mode === 'gap') {
+        const today = todayStr();
+        const ids = new Set((prog()?.pinned_routine?.ids || []).flat().filter(Boolean));
+        mutate(() => { p.play_log = p.play_log.filter((e) => !(e.date === today && ids.has(e.piece_id))); });
+      } else {
+        clearDoneDay(prog()?.id, +el.dataset.day);
+        renderRoutine();
+      }
+      break; }
     case 'switch-view': setMobileView(el.dataset.view); break;
     case 'routine-cell': { const piece = el.dataset.piece;
       pinnedPiece = pinnedPiece === piece ? null : piece; applyHighlight(pinnedPiece); break; }
@@ -566,6 +667,26 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   if (e.target.id === 'hide-zero') { hideZero = e.target.checked; renderPieces(); }
   if (e.target.id === 'tag-dist-mode') { chartMode = e.target.checked ? 'duration' : 'count'; renderRoutine(); }
+  if (e.target.id === 'schedule-mode') {
+    const p = prog();
+    // Switching modes converts every piece (perc <-> gap) and clears the
+    // pinned routine; the play log is kept (see docs/gap-scheduling.md).
+    mutate(() => { convertMode(p, e.target.value === 'gap' ? 'gap' : 'frequency'); clearDone(p.id); });
+    e.target.value = p.mode;
+  }
+  if (e.target.id === 'session-minutes') {
+    const p = prog();
+    mutateNoRender(() => { p.session_minutes = Math.max(5, Math.min(480, Math.round(+e.target.value || 60))); });
+    e.target.value = String(p.session_minutes);
+    renderPieces(); // the session cap shows in the pieces-per-day badge
+  }
+  if (e.target.matches('[data-piece-gap]')) {
+    const p = prog();
+    const piece = p.pieces.find((x) => x.id === e.target.dataset.pieceGap);
+    if (!piece) return;
+    // Re-render: the "every N days" label and the due status update.
+    mutate(() => { piece.gap = Math.max(0, Math.min(30, Math.round(+e.target.value || 0))); });
+  }
   if (e.target.id === 'num-days') {
     // Empty input -> 8 (the default); 0 is clamped to 1, not to 8 —
     // `parseInt(...) || 8` used to send 0 to 8 as well.

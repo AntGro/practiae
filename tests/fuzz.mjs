@@ -77,6 +77,7 @@ async function snapshot(page) {
       pieces: prog?.pieces.length || 0,
       pieceIds: (prog?.pieces || []).map((p) => p.id),
       numDays: prog?.num_days,
+      mode: prog?.mode || 'frequency',
       dayNames: prog?.day_names || [],
       excl: prog?.exclusion_groups?.length || 0,
       incl: prog?.inclusion_groups?.length || 0,
@@ -171,15 +172,24 @@ const ACTIONS = [
         verify: (b, a) => a.routineView !== toRoutine ? `routineView is ${a.routineView}, expected ${toRoutine}` : null };
     } },
   { id: 'generate', when: (s) => s.pieces > 0,
-    async run(page) {
+    async run(page, snap) {
       await genBtn(page).click();
       await page.waitForSelector('.routine-table', { state: 'attached', timeout: 5000 });
-      return { predict: 'routine pinned, table + chart with num_days columns',
-        verify: (b, a) => !a.routine ? 'no pinned routine after Generate'
-          : a.routineCols !== a.numDays ? `chart/table columns ${a.routineCols} != num_days ${a.numDays}`
-          : a.chartCols !== (a.tags.length ? a.numDays : 0) ? `chart has ${a.chartCols} columns, expected ${a.tags.length ? a.numDays : 0} (tags: ${a.tags.length})`
-          : a.routineDay !== 0 && a.routineDay !== -1 ? `routineDay ${a.routineDay}, expected 0`
-          : a.doneItems.length ? 'done marks survived Generate' : null };
+      return { predict: snap.mode === 'gap' ? 'session pinned, one column dated today'
+          : 'routine pinned, table + chart with num_days columns',
+        verify: (b, a) => {
+          if (a.mode === 'gap') {
+            return !a.routine ? 'no pinned session after Generate'
+              : a.routineCols !== 1 ? `session has ${a.routineCols} columns, expected 1`
+              : a.routineDay !== 0 && a.routineDay !== -1 ? `routineDay ${a.routineDay}, expected 0`
+              : a.doneItems.length ? 'done marks survived Generate' : null;
+          }
+          return !a.routine ? 'no pinned routine after Generate'
+            : a.routineCols !== a.numDays ? `chart/table columns ${a.routineCols} != num_days ${a.numDays}`
+            : a.chartCols !== (a.tags.length ? a.numDays : 0) ? `chart has ${a.chartCols} columns, expected ${a.tags.length ? a.numDays : 0} (tags: ${a.tags.length})`
+            : a.routineDay !== 0 && a.routineDay !== -1 ? `routineDay ${a.routineDay}, expected 0`
+            : a.doneItems.length ? 'done marks survived Generate' : null;
+        } };
     } },
   { id: 'generate-double', when: (s) => s.pieces > 0,
     async run(page) {
@@ -191,7 +201,7 @@ const ACTIONS = [
       return { predict: 'double-click Generate: one routine, no error (guard)',
         verify: (b, a) => !a.routine ? 'no routine after double Generate' : null };
     } },
-  { id: 'freq-random', when: (s) => s.visiblePieceIds.length > 0,
+  { id: 'freq-random', when: (s) => s.mode === 'frequency' && s.visiblePieceIds.length > 0,
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       const v = rint(0, 20) * 5;
@@ -206,6 +216,27 @@ const ACTIONS = [
           // stored value is the snapped value, not the raw input.
           const expected = snapPerc(v, a.numDays);
           return Math.abs((pc?.perc ?? -1) - expected) > 1e-9 ? `freq is ${pc?.perc}, expected ${expected}` : null; } };
+    } },
+  { id: 'gap-random', when: (s) => s.mode === 'gap' && s.visiblePieceIds.length > 0 && piecesView(s),
+    async run(page, snap) {
+      const id = pick(snap.visiblePieceIds);
+      const v = rint(0, 6);
+      await page.evaluate(([pid, val]) => {
+        const s = document.querySelector(`[data-piece-gap="${pid}"]`);
+        s.value = String(val);
+        s.dispatchEvent(new Event('change', { bubbles: true }));
+      }, [id, v]);
+      return { predict: `piece gap -> ${v} days`,
+        verify: (b, a) => { const pc = pieceOf(a, id);
+          return (pc?.gap ?? -1) !== v ? `gap is ${pc?.gap}, expected ${v}` : null; } };
+    } },
+  { id: 'switch-mode', when: (s) => piecesView(s),
+    async run(page, snap) {
+      const other = snap.mode === 'gap' ? 'frequency' : 'gap';
+      await page.locator('#schedule-mode').selectOption(other);
+      return { predict: `mode -> ${other}, routine cleared`,
+        verify: (b, a) => a.mode !== other ? `mode is ${a.mode}, expected ${other}`
+          : a.routine ? 'routine survived the mode switch' : null };
     } },
   { id: 'rename-title', when: (s) => s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
@@ -247,7 +278,11 @@ const ACTIONS = [
       const expected = raw === 'abc' ? 0 : parseInt(raw, 10);
       const cell = page.locator(fieldSel(id, 'duration_min')).first();
       await editTap(cell);
-      await page.locator('.edit-duration-min').fill(raw);
+      // Playwright's fill() refuses non-numeric text in a number input,
+      // so garbage goes in via JS: assigning 'abc' sanitizes to '' and
+      // the save reads it as 0, which is the behaviour under test.
+      if (raw === 'abc') await page.locator('.edit-duration-min').evaluate((el) => { el.value = 'abc'; });
+      else await page.locator('.edit-duration-min').fill(raw);
       await page.locator('.edit-duration-sec').fill('');
       await page.keyboard.press('Enter');
       return { predict: `duration "${raw}" -> ${expected} min`,
@@ -339,7 +374,7 @@ const ACTIONS = [
         verify: (b, a) => a.programs !== b.programs - 1 ? `programs ${a.programs}, expected ${b.programs - 1}`
           : a.currentId === b.currentId ? 'current program id unchanged after delete' : null };
     } },
-  { id: 'num-days', when: (s) => piecesView(s),
+  { id: 'num-days', when: (s) => s.mode === 'frequency' && piecesView(s),
     async run(page, snap) {
       const raw = pick([1, 3, 8, 14, 31, 0, 99]);
       const expected = Math.max(1, Math.min(31, raw));
@@ -352,7 +387,7 @@ const ACTIONS = [
         verify: (b, a) => a.numDays !== expected ? `num_days is ${a.numDays}, expected ${expected}`
           : a.dayNames.length !== expected ? `day_names has ${a.dayNames.length} entries` : null };
     } },
-  { id: 'day-names', when: (s) => piecesView(s),
+  { id: 'day-names', when: (s) => s.mode === 'frequency' && piecesView(s),
     async run(page, snap) {
       const names = Array.from({ length: snap.numDays }, (_, i) => `D${i + 1}-${word()}`);
       await page.locator('#day-names').fill(names.join(', '));
@@ -376,7 +411,7 @@ const ACTIONS = [
       return { predict: `search cleared -> ${expected} visible rows (other filters still apply)`,
         verify: (b, a) => a.visibleRows !== expected ? `visible ${a.visibleRows}, expected ${expected}` : null };
     } },
-  { id: 'hide-zero', when: (s) => piecesView(s),
+  { id: 'hide-zero', when: (s) => s.mode === 'frequency' && piecesView(s),
     async run(page, snap) {
       const want = !snap.hideZero;
       await page.locator('#hide-zero').setChecked(want);
@@ -394,7 +429,7 @@ const ACTIONS = [
       return { predict: `tag filter ${was ? 'removes' : 'adds'} "${tag}" -> ${expected} visible rows`,
         verify: (b, a) => a.visibleRows !== expected ? `visible ${a.visibleRows}, expected ${expected}` : null };
     } },
-  { id: 'days-dialog', when: (s) => s.visiblePieceIds.length > 0 && piecesView(s),
+  { id: 'days-dialog', when: (s) => s.mode === 'frequency' && s.visiblePieceIds.length > 0 && piecesView(s),
     async run(page, snap) {
       const id = pick(snap.visiblePieceIds);
       await page.locator(btnSel(id, 'edit-days')).first().click();
@@ -485,7 +520,7 @@ const ACTIONS = [
           return n !== expected ? `${n} highlighted cells, expected ${expected}` : null;
         } };
     } },
-  { id: 'routine-day-next', when: (s) => s.routine && MOBILE && s.routineView,
+  { id: 'routine-day-next', when: (s) => s.mode === 'frequency' && s.routine && MOBILE && s.routineView,
     async run(page, snap) {
       const next = Math.min(snap.routineDay + 1, snap.numDays - 1);
       await page.locator('.day-chip.active').evaluate((el, next) => el.parentElement.children[next]?.click?.(), next);
@@ -545,7 +580,7 @@ const ACTIONS = [
   // typing in #day-names then clicking a button used to lose the click,
   // because the blur fired `change` -> full render -> the button under
   // the cursor was replaced between mousedown and mouseup.
-  { id: 'day-names-then-generate', when: (s) => s.pieces > 0 && piecesView(s),
+  { id: 'day-names-then-generate', when: (s) => s.mode === 'frequency' && s.pieces > 0 && piecesView(s),
     async run(page, snap) {
       const names = Array.from({ length: snap.numDays }, (_, i) => `D${i + 1}-${word()}`);
       await page.locator('#day-names').fill(names.join(', '));
