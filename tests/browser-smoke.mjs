@@ -371,6 +371,28 @@ try {
   await mob.waitForTimeout(200);
   check('mobile: tapping a done item unmarks it',
     (await mob.locator('.day-list li.done').count()) === 0);
+  // Untick all clears only the current day's done marks.
+  check('mobile: no Untick all button when nothing is done',
+    (await mob.locator('[data-action="routine-clear-done"]').count()) === 0);
+  await mob.locator('.day-list li').nth(0).click(); // day 2: one item done
+  await mob.waitForTimeout(200);
+  await mob.locator('.day-chip[data-day="0"]').click(); // day 1
+  await mob.waitForTimeout(200);
+  await mob.locator('.day-list li').nth(0).click(); // day 1: one item done
+  await mob.waitForTimeout(200);
+  await mob.locator('.day-chip[data-day="1"]').click(); // back to day 2
+  await mob.waitForTimeout(200);
+  check('mobile: Untick all button appears when items are done',
+    (await mob.locator('[data-action="routine-clear-done"]').count()) === 1);
+  await mob.locator('[data-action="routine-clear-done"]').click();
+  await mob.waitForTimeout(200);
+  check('mobile: Untick all clears the current day',
+    (await mob.locator('.day-list li.done').count()) === 0 &&
+    (await mob.locator('[data-action="routine-clear-done"]').count()) === 0);
+  await mob.locator('.day-chip[data-day="0"]').click();
+  await mob.waitForTimeout(200);
+  check('mobile: the other day keeps its done mark',
+    (await mob.locator('.day-list li.done').count()) === 1);
   check('mobile: no page errors', mobErrors.length === 0, mobErrors.join(' | '));
 } finally {
   await browser.close();
