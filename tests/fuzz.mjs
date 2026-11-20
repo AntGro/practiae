@@ -508,6 +508,12 @@ const ACTIONS = [
       return { predict: `day item "${label}" -> ${done.has(label) ? 'done' : 'not done'}`,
         verify: (b, a) => JSON.stringify(a.doneItems) !== JSON.stringify(expected) ? `done items are ${JSON.stringify(a.doneItems)}, expected ${JSON.stringify(expected)}` : null };
     } },
+  { id: 'routine-clear-done', when: (s) => s.routine && MOBILE && s.routineView && s.doneItems.length > 0,
+    async run(page) {
+      await page.locator('[data-action="routine-clear-done"]').click();
+      return { predict: 'done marks cleared for the current day',
+        verify: (b, a) => a.doneItems.length ? `${a.doneItems.length} done item(s) left` : null };
+    } },
   { id: 'unpin', when: (s) => s.routine && piecesView(s),
     async run(page) {
       await page.locator('[data-action="unpin"]').click();

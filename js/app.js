@@ -40,6 +40,7 @@ let mobileView = 'pieces'; // phone view toggle: 'pieces' (edit) or 'routine' (d
 let routineDone = new Set(); // mobile day view: items tapped done during a practice session (in-memory only; a new routine starts fresh)
 const doneKey = (progId, day, label) => `${progId}::${day}::${label}`;
 function clearDone(progId) { for (const k of [...routineDone]) if (k.startsWith(`${progId}::`)) routineDone.delete(k); }
+function clearDoneDay(progId, day) { const prefix = `${progId}::${day}::`; for (const k of [...routineDone]) if (k.startsWith(prefix)) routineDone.delete(k); }
 let chartMode = 'count'; // tag chart: 'count' (pieces) or 'duration' (minutes)
 let pinnedPiece = null; // routine cell highlight pinned by click (touch)
 let groupDraft = { kind: null, selected: new Set() };
@@ -193,6 +194,7 @@ function renderRoutine() {
   const day = Math.max(0, Math.min(routineDay, r.columns.length - 1));
   routineDay = day;
   const items = r.data.map((row) => row[day]).filter(Boolean);
+  const doneCount = items.reduce((n, cell) => n + (routineDone.has(doneKey(p.id, day, cell)) ? 1 : 0), 0);
   mob.innerHTML = `<div class="day-nav">
       <button class="btn" data-action="routine-day" data-day="${day - 1}" ${day === 0 ? 'disabled' : ''} aria-label="Previous day">←</button>
       <div class="day-chips">${r.columns.map((c, i) => `<button class="day-chip ${i === day ? 'active' : ''}" data-action="routine-day" data-day="${i}">${esc(c)}</button>`).join('')}</div>
@@ -203,6 +205,7 @@ function renderRoutine() {
       const done = routineDone.has(doneKey(p.id, day, cell));
       return `<li class="${done ? 'done' : ''}" data-action="routine-day-item" data-day="${day}" data-piece="${esc(cell)}"><span class="day-tick" aria-hidden="true">${done ? '✓' : ''}</span><span class="day-label">${esc(cell)}</span></li>`;
     }).join('')}</ol>
+    ${doneCount > 0 ? `<button class="btn small" data-action="routine-clear-done" data-day="${day}">Untick all</button>` : ''}
     <p class="muted small">Tap an item to mark it done; tap again to undo.</p>`;
   const maxRows = r.data.length;
   // data-piece on each non-empty cell powers the hover/click highlighting
@@ -497,6 +500,7 @@ document.addEventListener('click', async (e) => {
       routineDay = Math.max(0, Math.min(d, r.columns.length - 1)); renderRoutine(); break; }
     case 'routine-day-item': { const key = doneKey(prog()?.id, +el.dataset.day, el.dataset.piece);
       routineDone.has(key) ? routineDone.delete(key) : routineDone.add(key); renderRoutine(); break; }
+    case 'routine-clear-done': clearDoneDay(prog()?.id, +el.dataset.day); renderRoutine(); break;
     case 'switch-view': setMobileView(el.dataset.view); break;
     case 'routine-cell': { const piece = el.dataset.piece;
       pinnedPiece = pinnedPiece === piece ? null : piece; applyHighlight(pinnedPiece); break; }
