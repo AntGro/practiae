@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { generateRoutine, pieceLabel, parseDayPattern, computeTagDistribution } from '../js/generate.js';
 import { optimizeRoutine, analyseRoutine, generateOptimizedRoutine } from '../js/optimize.js';
 import { monLikeProgram } from './mon-like-program.mjs';
-import { normaliseDoc, normaliseProgram, blankProgram, seedFromDefault, groupsAsRanks } from '../js/store.js';
+import { normaliseDoc, normaliseProgram, blankProgram, seedFromDefault, groupsAsRanks, percToGap, gapToPerc, convertMode } from '../js/store.js';
+import { buildSession, pieceStatus, dueLabel, todayStr, daysBetween, formatDayLabel, lastPlayedById, playedIdsOn } from '../js/session.js';
 import { formatDuration, parseDuration, freqDays, snapPerc, freqLabel, durationFromMinSec } from '../js/utils.js';
 import { readFileSync } from 'node:fs';
 
@@ -287,6 +288,161 @@ check('optimizer: single-day and all-fixed programs return unchanged', () => {
   const f2 = mkPiece({ rank: 1, perc: 100, day_pattern: [1, 3] });
   const { days: d2 } = generateRoutine(mkProg([f1, f2], 4));
   assert.deepEqual(optimizeRoutine(mkProg([f1, f2], 4), d2).days, d2);
+});
+
+// ---------- gap scheduling (docs/gap-scheduling.md) ----------
+const T = '2026-11-20'; // fixed "today" so the tests are deterministic
+const mkGapPiece = (over) => ({ id: over.id ?? `g${over.rank}`, rank: over.rank,
+  title: over.title ?? `Piece ${over.rank}`, composer: '', gap: over.gap ?? 0,
+  tags: over.tags ?? [], duration_min: over.duration_min ?? 10 });
+const mkGapProg = (pieces, over = {}) => ({ mode: 'gap', num_days: 8, pieces,
+  session_minutes: over.session_minutes ?? 60, play_log: over.play_log ?? [],
+  exclusion_groups: over.exclusion_groups ?? [], inclusion_groups: over.inclusion_groups ?? [] });
+const pickedTitles = (s) => s.data.flat();
+
+check('gap: date helpers', () => {
+  assert.equal(daysBetween('2026-11-18', '2026-11-20'), 2);
+  assert.equal(daysBetween('2026-11-20', '2026-11-18'), -2);
+  assert.equal(formatDayLabel('2026-11-20'), 'Fri 20 Nov');
+  assert.equal(formatDayLabel('2026-11-21'), 'Sat 21 Nov');
+  assert.equal(todayStr(new Date(2026, 10, 20, 12)), '2026-11-20');
+  const last = lastPlayedById([{ date: '2026-11-18', piece_id: 'a' }, { date: '2026-11-19', piece_id: 'a' }, { date: '2026-11-17', piece_id: 'b' }]);
+  assert.equal(last.get('a'), '2026-11-19');
+  assert.equal(last.get('b'), '2026-11-17');
+  assert.deepEqual([...playedIdsOn([{ date: '2026-11-20', piece_id: 'a' }, { date: '2026-11-19', piece_id: 'b' }], '2026-11-20')], ['a']);
+});
+
+check('gap: due/overdue math and labels', () => {
+  const daily = mkGapPiece({ rank: 0, gap: 0 });
+  assert.deepEqual(pieceStatus(daily, null, T), { since: Infinity, dueIn: -Infinity, overdue: Infinity, never: true });
+  assert.equal(dueLabel(daily, null, T), 'never played');
+  assert.equal(dueLabel(daily, '2026-11-20', T), 'due in 1d'); // played today, next due tomorrow
+  assert.equal(dueLabel(daily, '2026-11-19', T), 'due today');
+  assert.equal(dueLabel(daily, '2026-11-18', T), 'overdue 1d');
+  const everyOther = mkGapPiece({ rank: 1, gap: 1 });
+  assert.equal(dueLabel(everyOther, '2026-11-19', T), 'due in 1d'); // played yesterday, next due tomorrow
+  assert.equal(dueLabel(everyOther, '2026-11-18', T), 'due today');
+  assert.equal(dueLabel(everyOther, '2026-11-20', T), 'due in 2d');
+  const weekly = mkGapPiece({ rank: 2, gap: 6 });
+  assert.equal(dueLabel(weekly, '2026-11-19', T), 'due in 6d');
+  assert.equal(dueLabel(weekly, '2026-11-13', T), 'due today'); // period 7, played 7 days ago
+  assert.equal(dueLabel(weekly, '2026-11-10', T), 'overdue 3d');
+});
+
+check('gap: cold start picks never-played by gap order within the cap', () => {
+  const pieces = [mkGapPiece({ rank: 0, gap: 2, duration_min: 30 }), mkGapPiece({ rank: 1, gap: 0, duration_min: 30 }), mkGapPiece({ rank: 2, gap: 1, duration_min: 30 })];
+  const s = buildSession(mkGapProg(pieces, { session_minutes: 60 }), T);
+  assert.deepEqual(pickedTitles(s), ['Piece 1', 'Piece 2']); // gap 0, then gap 1; gap 2 does not fit
+  assert.equal(s.totalMinutes, 60);
+  assert.equal(s.columns.length, 1);
+  assert.equal(s.date, T);
+  assert.deepEqual(s.pickedIds, ['g1', 'g2']);
+  assert.deepEqual(s.ids, [['g1'], ['g2']]);
+});
+
+check('gap: most overdue first, cap respected, deterministic', () => {
+  const log = [{ date: '2026-11-10', piece_id: 'g0' }, { date: '2026-11-18', piece_id: 'g1' }, { date: '2026-11-19', piece_id: 'g2' }];
+  const pieces = [mkGapPiece({ rank: 0, gap: 0, duration_min: 40 }), mkGapPiece({ rank: 1, gap: 0, duration_min: 40 }), mkGapPiece({ rank: 2, gap: 0, duration_min: 40 })];
+  // g0: 9 days overdue; g1: 1 day; g2: due today. Cap 60 fits only one 40-min piece.
+  const s1 = buildSession(mkGapProg(pieces, { session_minutes: 60, play_log: log }), T);
+  const s2 = buildSession(mkGapProg(pieces, { session_minutes: 60, play_log: log }), T);
+  assert.deepEqual(pickedTitles(s1), ['Piece 0']);
+  assert.deepEqual(s1, s2); // deterministic
+  assert.ok(s1.totalMinutes <= 60);
+});
+
+check('gap: fill pulls in pieces due tomorrow, never pieces due later or played today', () => {
+  const pieces = [mkGapPiece({ rank: 0, gap: 0, duration_min: 10 }), mkGapPiece({ rank: 1, gap: 1, duration_min: 10 }), mkGapPiece({ rank: 2, gap: 6, duration_min: 10 })];
+  // g0 (gap 0, played yesterday): due today. g1 (gap 1, played yesterday):
+  // due tomorrow — pulled in by the fill. g2 (gap 6): due in 6 days, never.
+  const s = buildSession(mkGapProg(pieces, { session_minutes: 60,
+    play_log: [{ date: '2026-11-19', piece_id: 'g0' }, { date: '2026-11-19', piece_id: 'g1' }, { date: '2026-11-19', piece_id: 'g2' }] }), T);
+  assert.deepEqual(pickedTitles(s), ['Piece 0', 'Piece 1']);
+  // Same, but g1 was played today: due in 2 days and played today, so the
+  // fill must not pull it back in for a second play the same day.
+  const s2 = buildSession(mkGapProg(pieces, { session_minutes: 60,
+    play_log: [{ date: '2026-11-19', piece_id: 'g0' }, { date: '2026-11-20', piece_id: 'g1' }, { date: '2026-11-19', piece_id: 'g2' }] }), T);
+  assert.deepEqual(pickedTitles(s2), ['Piece 0']);
+});
+
+check('gap: exclusion picks at most one member, inclusion is all-or-nothing', () => {
+  const pieces = [mkGapPiece({ rank: 0, gap: 0, duration_min: 15 }), mkGapPiece({ rank: 1, gap: 0, duration_min: 15 }), mkGapPiece({ rank: 2, gap: 0, duration_min: 20 }), mkGapPiece({ rank: 3, gap: 0, duration_min: 20 })];
+  const excl = buildSession(mkGapProg(pieces, { exclusion_groups: [['g0', 'g1']] }), T);
+  assert.equal(pickedTitles(excl).filter((t) => t === 'Piece 0' || t === 'Piece 1').length, 1);
+  assert.equal(pickedTitles(excl).length, 3); // g2, g3 plus one of g0/g1
+  // Inclusion unit (g0+g1 = 30 min) fits in 70; both are picked together.
+  const incl = buildSession(mkGapProg(pieces, { session_minutes: 70, inclusion_groups: [['g0', 'g1']] }), T);
+  assert.ok(pickedTitles(incl).includes('Piece 0') && pickedTitles(incl).includes('Piece 1'));
+  assert.equal(pickedTitles(incl).length, 4);
+  // Inclusion unit (30 min) does not fit in 25 — neither is picked.
+  const inclTight = buildSession(mkGapProg(pieces, { session_minutes: 25, inclusion_groups: [['g0', 'g1']] }), T);
+  assert.ok(!pickedTitles(inclTight).includes('Piece 0') && !pickedTitles(inclTight).includes('Piece 1'));
+  assert.deepEqual(pickedTitles(inclTight), ['Piece 2']); // 20 min fits; g3 does not fit after it
+});
+
+check('gap: warnings for too-long units, unsatisfiable units, and empty sessions', () => {
+  const pieces = [mkGapPiece({ rank: 0, gap: 0, duration_min: 90 }), mkGapPiece({ rank: 1, gap: 0, duration_min: 10 })];
+  const s = buildSession(mkGapProg(pieces, { session_minutes: 60 }), T);
+  assert.deepEqual(pickedTitles(s), ['Piece 1']);
+  assert.equal(s.warnings.length, 1);
+  assert.match(s.warnings[0], /longer than the session cap/);
+  // Inclusion overlapping exclusion: the unit can never be scheduled.
+  const bad = buildSession(mkGapProg(pieces, { session_minutes: 60, inclusion_groups: [['g0', 'g1']], exclusion_groups: [['g0', 'g1']] }), T);
+  assert.equal(bad.warnings.filter((w) => /never be scheduled/.test(w)).length, 1);
+  // Nothing due: all played recently with long gaps.
+  const log = [{ date: '2026-11-20', piece_id: 'g0' }, { date: '2026-11-20', piece_id: 'g1' }];
+  const rested = buildSession(mkGapProg(
+    [mkGapPiece({ rank: 0, gap: 6, duration_min: 10 }), mkGapPiece({ rank: 1, gap: 6, duration_min: 10 })],
+    { session_minutes: 60, play_log: log }), T);
+  assert.deepEqual(pickedTitles(rested), []);
+  assert.ok(rested.warnings.some((w) => /Nothing due today/.test(w)));
+});
+
+check('gap: a ticked piece is not in the next session the same day', () => {
+  const pieces = [mkGapPiece({ rank: 0, gap: 0, duration_min: 10 }), mkGapPiece({ rank: 1, gap: 0, duration_min: 10 })];
+  const prog = mkGapProg(pieces, { session_minutes: 60 });
+  const s1 = buildSession(prog, T);
+  assert.deepEqual(pickedTitles(s1), ['Piece 0', 'Piece 1']);
+  // Tick Piece 0 today (as the day view does), then regenerate.
+  prog.play_log.push({ date: T, piece_id: 'g0' });
+  const s2 = buildSession(prog, T);
+  assert.deepEqual(pickedTitles(s2), ['Piece 1']);
+});
+
+check('gap: perc <-> gap conversion round-trips the common cases', () => {
+  assert.equal(percToGap(100, 8), 0);
+  assert.equal(percToGap(50, 8), 1);
+  assert.equal(percToGap(12.5, 8), 7);
+  assert.equal(percToGap(0, 8), 30);
+  assert.equal(gapToPerc(0, 8), 100);
+  assert.equal(gapToPerc(1, 8), 50);
+  assert.equal(gapToPerc(7, 8), 12.5);
+  assert.equal(gapToPerc(30, 8), 0);
+  // Mode switch converts every piece and clears the routine.
+  const p = normaliseProgram({ name: 'P', num_days: 8, pieces: [{ title: 'A', perc: 50 }, { title: 'B', perc: 100 }], pinned_routine: { columns: ['x'] }, is_routine_pinned: true });
+  convertMode(p, 'gap');
+  assert.equal(p.mode, 'gap');
+  assert.deepEqual(p.pieces.map((x) => x.gap), [1, 0]);
+  assert.equal(p.pinned_routine, null);
+  convertMode(p, 'frequency');
+  assert.equal(p.mode, 'frequency');
+  assert.deepEqual(p.pieces.map((x) => x.perc), [50, 100]);
+});
+
+check('gap: normalise defaults mode/gap/log and prunes the log', () => {
+  const p = normaliseProgram({ name: 'P', pieces: [{ title: 'A' }] });
+  assert.equal(p.mode, 'frequency');
+  assert.equal(p.session_minutes, 60);
+  assert.deepEqual(p.play_log, []);
+  assert.equal(p.pieces[0].gap, 0);
+  const old = '2020-01-01';
+  const recent = todayStr();
+  const p2 = normaliseProgram({ name: 'P', mode: 'gap', session_minutes: 45,
+    pieces: [{ id: 'x', title: 'A' }],
+    play_log: [{ date: old, piece_id: 'x' }, { date: recent, piece_id: 'x' }, { date: recent, piece_id: 'x' }, { date: recent, piece_id: 'ghost' }] });
+  assert.equal(p2.mode, 'gap');
+  assert.equal(p2.session_minutes, 45);
+  assert.deepEqual(p2.play_log, [{ date: recent, piece_id: 'x' }]); // old pruned, duplicate + ghost dropped
 });
 
 console.log(`\n${passed} tests passed`);

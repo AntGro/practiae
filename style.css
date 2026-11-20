@@ -68,6 +68,12 @@ textarea { width: 100%; }
 /* Slider + its % stay on one line (table cell and mobile card alike). */
 .perc-wrap { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; }
 .perc-val { display: inline-block; min-width: 3ch; }
+.gap-wrap { display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap; }
+.gap-wrap input[type="number"] { width: 4.5em; }
+.gap-val { color: var(--muted); font-size: .85rem; }
+/* The UA [hidden] rule loses to author display rules (e.g. the
+   .program-settings label flex rule), so enforce it explicitly. */
+[hidden] { display: none !important; }
 .tag { display: inline-block; border: 1px solid var(--tag-color, var(--accent)); color: var(--tag-color, var(--accent));
   border-radius: 999px; padding: 0 .45rem; font-size: .8rem; margin: 1px 2px 1px 0; }
 .editable { cursor: text; }

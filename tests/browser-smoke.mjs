@@ -393,6 +393,49 @@ try {
   await mob.waitForTimeout(200);
   check('mobile: the other day keeps its done mark',
     (await mob.locator('.day-list li.done').count()) === 1);
+  // ---- Gap mode: schedule by target gap, session from the play log ----
+  await mob.locator('[data-action="switch-view"][data-view="pieces"]').click();
+  await mob.waitForTimeout(200);
+  await mob.locator('#schedule-mode').selectOption('gap');
+  await mob.waitForTimeout(300);
+  check('gap: switching modes shows gap inputs and hides the cycle settings',
+    (await mob.locator('.piece-card [data-piece-gap]').first().isVisible()) &&
+    (await mob.locator('#num-days-wrap').isHidden()) &&
+    (await mob.locator('#session-minutes-wrap').isVisible()) &&
+    (await mob.locator('#freq-header').textContent()) === 'Gap' &&
+    (await mob.locator('.mobile-bar [data-action="generate"]').textContent()) === "Generate today's session");
+  // The first piece gets a 6-day gap (every 7 days); the rest stay daily.
+  await mob.locator('.piece-card [data-piece-gap]').first().fill('6');
+  await mob.locator('.piece-card [data-piece-gap]').first().blur();
+  await mob.waitForTimeout(300);
+  check('gap: gap input shows "every 7 days · never played"',
+    (await mob.locator('.piece-card .gap-val').first().textContent())?.includes('every 7 days') &&
+    (await mob.locator('.piece-card .gap-val').first().textContent())?.includes('never played'));
+  await mob.locator('#session-minutes').fill('30');
+  await mob.locator('#session-minutes').blur();
+  await mob.waitForTimeout(200);
+  await mob.click('.mobile-bar [data-action="generate"]');
+  await mob.waitForTimeout(400);
+  const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  check('gap: session is dated today with all 68 pieces',
+    (await mob.locator('.day-chip.active').textContent()) === todayLabel &&
+    (await mob.locator('.day-list li').count()) === 68);
+  const firstTitle = await mob.locator('.day-list li .day-label').first().textContent();
+  await mob.locator('.day-list li').first().click();
+  await mob.waitForTimeout(300);
+  check('gap: ticking writes the play to the log (persisted)',
+    await mob.evaluate(() => {
+      const doc = JSON.parse(localStorage.getItem('practiae-gdrive:demo:v1'));
+      const log = doc.programs[0].play_log;
+      const d = new Date();
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return log.length === 1 && log[0].date === ds;
+    }));
+  await mob.click('.mobile-bar [data-action="generate"]');
+  await mob.waitForTimeout(400);
+  check('gap: a ticked piece is not in the next session the same day',
+    (await mob.locator('.day-list li').count()) === 67 &&
+    (await mob.locator('.day-list li .day-label', { hasText: firstTitle }).count()) === 0);
   check('mobile: no page errors', mobErrors.length === 0, mobErrors.join(' | '));
 } finally {
   await browser.close();

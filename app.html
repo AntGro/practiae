@@ -60,26 +60,28 @@
     </div>
     <div id="pieces-view">
     <div class="program-settings row">
-      <label>Days in cycle <input id="num-days" type="number" min="1" max="31" value="8"></label>
-      <label class="grow">Day names (comma-separated) <input id="day-names" type="text"></label>
+      <label id="num-days-wrap">Days in cycle <input id="num-days" type="number" min="1" max="31" value="8"></label>
+      <label class="grow" id="day-names-wrap">Day names (comma-separated) <input id="day-names" type="text"></label>
+      <label>Schedule by <select id="schedule-mode"><option value="frequency">Frequency</option><option value="gap">Gap</option></select></label>
+      <label id="session-minutes-wrap" hidden>Session (min) <input id="session-minutes" type="number" min="5" max="480" step="5" value="60"></label>
     </div>
 
     <div class="row filters">
       <input type="search" id="search-pieces" placeholder="Search pieces…" aria-label="Search pieces">
-      <label><input type="checkbox" id="hide-zero"> Hide 0%</label>
+      <label id="hide-zero-wrap"><input type="checkbox" id="hide-zero"> Hide 0%</label>
       <span id="pieces-count" class="muted small"></span>
       <span id="filter-tags" class="filter-tags"></span>
       <button class="btn small" data-action="add-piece">Add piece</button>
-      <label>Balance by <select id="balance-by"><option value="pieces">Pieces</option><option value="duration">Duration</option></select></label>
+      <label id="balance-by-wrap">Balance by <select id="balance-by"><option value="pieces">Pieces</option><option value="duration">Duration</option></select></label>
       <button class="btn primary" data-action="generate">Generate routine</button>
     </div>
 
     <div class="table-scroll"><table class="pieces-table">
-      <thead><tr><th>#</th><th>Title</th><th>Composer / author</th><th>Frequency</th><th>Tags</th><th>Duration</th><th>Days</th><th>Notes</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Title</th><th>Composer / author</th><th id="freq-header">Frequency</th><th>Tags</th><th>Duration</th><th>Days</th><th>Notes</th><th></th></tr></thead>
       <tbody id="pieces-body"></tbody>
     </table></div>
     <div id="pieces-cards" class="pieces-cards"></div>
-    <p class="muted small">Double-click a cell — or tap it on a phone — to edit it (Enter saves, Esc cancels). Drag the frequency slider to set how often a piece appears: 100% = every day, 50% = every other day.</p>
+    <p class="muted small" id="pieces-hint">Double-click a cell — or tap it on a phone — to edit it (Enter saves, Esc cancels). Drag the frequency slider to set how often a piece appears: 100% = every day, 50% = every other day.</p>
 
     <div class="row">
       <button class="btn" data-action="copy-routine">Copy routine</button>
