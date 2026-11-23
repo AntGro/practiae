@@ -130,6 +130,19 @@ try {
   await page.waitForSelector('.routine-table', { timeout: 10000 });
   check('regenerate with Balance by Duration keeps the routine table',
     (await page.locator('.routine-table thead th').count()) === 9);
+  // Copy routine: TSV — one column per day, so pasting into Sheets lands
+  // in columns, not a single column. Capture the clipboard write instead
+  // of reading the system clipboard (needs no permission).
+  await page.evaluate(() => { window.__copied = null;
+    navigator.clipboard.writeText = async (t) => { window.__copied = t; }; });
+  await page.click('[data-action="copy-routine"]');
+  await page.waitForTimeout(300);
+  const copiedLines = (await page.evaluate(() => window.__copied) || '').split('\n');
+  check('copy routine is TSV with one column per day',
+    copiedLines.length === 69 &&
+    copiedLines.every((l) => l.split('\t').length === 9) &&
+    copiedLines[0].split('\t').slice(1).join('|') === 'Jour 1|Jour 2|Jour 3|Jour 4|Jour 5|Jour 6|Jour 7|Jour 8' &&
+    copiedLines[1].split('\t')[0] === '1.');
   check('balance-by setting persists across reload',
     await page.reload().then(async () => {
       await page.waitForSelector('.routine-table', { timeout: 10000 });

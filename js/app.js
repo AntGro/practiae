@@ -610,8 +610,17 @@ document.addEventListener('click', async (e) => {
     case 'generate': await doGenerate(el); break;
     case 'unpin': clearDone(p.id); mutate(() => { p.pinned_routine = null; p.is_routine_pinned = false; }); break;
     case 'copy-routine': { if (!p.pinned_routine) break;
-      const text = p.pinned_routine.columns.map((c, d) => `${c}:\n${p.pinned_routine.data.map((row) => row[d]).filter(Boolean).map((x) => `  - ${x}`).join('\n')}`).join('\n');
-      await navigator.clipboard.writeText(text); el.textContent = 'Copied'; setTimeout(render, 1200); break; }
+      // TSV, not a bullet list: pasting into Google Sheets / Excel splits
+      // on tabs, so each day lands in its own column. First column is the
+      // row number, matching the table's row headers; first row is the day
+      // names. Labels are sanitized — a tab or newline inside a title
+      // would break the grid.
+      const r = p.pinned_routine;
+      const cell = (v) => String(v ?? '').replace(/[\t\r\n]+/g, ' ');
+      const lines = [['', ...r.columns].map(cell).join('\t'),
+        ...r.data.map((row, i) => [r.indices?.[i] ?? `${i + 1}.`, ...row].map(cell).join('\t'))];
+      await navigator.clipboard.writeText(lines.join('\n'));
+      el.textContent = 'Copied'; setTimeout(render, 1200); break; }
     case 'export-json': download(`${p.name.replace(/\s+/g, '_')}.json`, JSON.stringify(doc, null, 2)); break;
     case 'import-json': $('#import-file').click(); break;
     case 'start-group': groupDraft = { kind: el.dataset.kind, selected: new Set() }; renderGroups(); break;
